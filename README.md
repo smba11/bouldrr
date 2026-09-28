@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bouldrr
 
-## Getting Started
+Bouldrr is a free real-estate development assistant for developers, flippers,
+contractors, homeowners, and first-time builders. This repository contains the
+MVP foundation: authentication, project creation, property workspace, task
+planning, document storage, sourced regulation architecture, and a project
+copilot abstraction.
 
-First, run the development server:
+## Current MVP Features
+
+- Supabase Auth sign up, sign in, sign out, and protected app routes.
+- Project dashboard and multi-step project creation flow.
+- Property workspace with overview, property details, task plan, documents, and copilot.
+- Seeded starter task structure across due diligence, zoning, design, financing, permits, construction, inspections, and completion.
+- Supabase Storage upload/delete flow for project documents.
+- Database design that separates official sources, extracted regulations, and Bouldrr summaries.
+- Copilot UI and server-side provider layer. The app runs without `OPENAI_API_KEY` and returns a graceful disabled message until one is added.
+- User profile settings with preferred language prepared for English and Spanish.
+
+## Architecture
+
+- `src/app`: Next.js App Router routes.
+- `src/components`: reusable UI and feature components.
+- `src/lib/supabase`: Supabase SSR browser/server/proxy clients.
+- `src/lib/actions`: server actions for auth, projects, documents, and settings.
+- `src/lib/data`: server-side data access helpers.
+- `src/lib/ai`: provider abstraction for the project copilot.
+- `supabase/migrations`: schema, RLS policies, storage bucket policy, and example source/regulation seed.
+
+## Environment Variables
+
+Create `.env.local` from `.env.example`.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5-mini
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
+NEXT_PUBLIC_MAPBOX_TOKEN=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Required for the app data path:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Optional:
 
-## Learn More
+- `OPENAI_API_KEY`: enables live copilot responses.
+- `OPENAI_MODEL`: defaults to `gpt-5-mini`.
+- Map keys are reserved for later Google Maps or Mapbox integration.
 
-To learn more about Next.js, take a look at the following resources:
+## Supabase Setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Create or open the Supabase project used by Vercel.
+2. Apply migrations:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+supabase db push
+```
 
-## Deploy on Vercel
+3. Confirm the `project-documents` storage bucket exists. The migration creates it as a private bucket.
+4. Confirm Auth email settings and redirect URLs include your local and Vercel URLs, including `/auth/confirm`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Development
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install
+npm run dev
+```
+
+Quality checks:
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
+
+## Deployment Notes
+
+The repository is ready for Vercel. Configure the Supabase public environment
+variables in Vercel. Do not expose Supabase service role keys or `OPENAI_API_KEY`
+to the browser. `OPENAI_API_KEY` should remain a server-only environment variable.
+
+## What To Build Next
+
+- Real jurisdiction matching from geocoding plus official source discovery.
+- Admin/source ingestion flow for local planning, zoning, building, and permit sources.
+- Better document previews and signed download links.
+- Task notes, attachments, and jurisdiction-specific task generation.
+- Live map integration with Google Maps or Mapbox.
+- Production observability and audit logging around AI answers and source extraction.
