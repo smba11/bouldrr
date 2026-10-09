@@ -11,13 +11,31 @@ begin
 end;
 $$;
 
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
   preferred_language text not null default 'en' check (preferred_language in ('en', 'es')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.profiles
+add column if not exists full_name text,
+add column if not exists preferred_language text not null default 'en';
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'profiles_preferred_language_check'
+      and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+    add constraint profiles_preferred_language_check
+    check (preferred_language in ('en', 'es'));
+  end if;
+end $$;
 
 create table public.projects (
   id uuid primary key default gen_random_uuid(),
