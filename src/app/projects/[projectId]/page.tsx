@@ -1,7 +1,16 @@
 import Link from "next/link";
-import { Bot, ClipboardList, FileText, MapPin } from "lucide-react";
+import {
+  Bot,
+  CalendarClock,
+  ClipboardList,
+  FileText,
+  MapPin,
+  Scale,
+  WalletCards,
+} from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getProjectWorkspace, getRegulationExample } from "@/lib/data/projects";
+import { formatCurrency } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +27,16 @@ export default async function ProjectOverviewPage({
   const property = project.properties[0];
   const completedTasks = project.project_tasks.filter(
     (task) => task.status === "complete",
+  ).length;
+  const blockedTasks = project.project_tasks.filter(
+    (task) => task.status === "blocked",
+  ).length;
+  const estimatedCost = project.project_costs.reduce(
+    (total, cost) => total + cost.estimated_amount,
+    0,
+  );
+  const completeMilestones = project.project_milestones.filter(
+    (milestone) => milestone.status === "complete",
   ).length;
 
   return (
@@ -40,7 +59,7 @@ export default async function ProjectOverviewPage({
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -68,12 +87,47 @@ export default async function ProjectOverviewPage({
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
+              <Scale className="size-4" />
+              Feasibility
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {blockedTasks > 0
+              ? `${blockedTasks} blocker${blockedTasks === 1 ? "" : "s"}`
+              : "No blocked tasks"}
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
               <FileText className="size-4" />
               Documents
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             {project.documents.length} uploaded
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <WalletCards className="size-4" />
+              Costs
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {formatCurrency(estimatedCost)} estimated
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CalendarClock className="size-4" />
+              Timeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {completeMilestones} of {project.project_milestones.length} milestones complete
           </CardContent>
         </Card>
       </div>

@@ -10,10 +10,18 @@ export type ProjectStatus = "planning" | "active" | "blocked" | "complete";
 export type TaskStatus =
   | "not_started"
   | "in_progress"
+  | "waiting"
   | "blocked"
+  | "submitted"
+  | "approved"
   | "complete";
 export type TaskPriority = "low" | "medium" | "high";
 export type MessageRole = "user" | "assistant" | "system";
+export type MilestoneStatus =
+  | "not_started"
+  | "in_progress"
+  | "blocked"
+  | "complete";
 
 export type ProjectRecord = {
   id: string;
@@ -38,6 +46,8 @@ export type PropertyRecord = {
   latitude: number | null;
   longitude: number | null;
   parcel_number: string | null;
+  google_place_id: string | null;
+  formatted_address: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -54,6 +64,14 @@ export type ProjectTaskRecord = {
   priority: TaskPriority;
   due_date: string | null;
   regulation_source_id: string | null;
+  local_authority: string | null;
+  documents_needed: string[];
+  fee_estimate: number | null;
+  processing_time: string | null;
+  dependency_notes: string | null;
+  assigned_to: string | null;
+  notes: string | null;
+  source_url: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -109,6 +127,35 @@ export type RegulationRecord = {
   title: string;
   summary: string;
   raw_reference: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProjectCostRecord = {
+  id: string;
+  project_id: string;
+  category: string;
+  item_name: string;
+  estimated_amount: number;
+  quoted_amount: number;
+  committed_amount: number;
+  paid_amount: number;
+  final_amount: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProjectMilestoneRecord = {
+  id: string;
+  project_id: string;
+  phase: string;
+  title: string;
+  status: MilestoneStatus;
+  due_date: string | null;
+  completed_at: string | null;
+  sort_order: number;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -175,6 +222,29 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Omit<DocumentRecord, "id" | "project_id" | "uploaded_by">>;
+        Relationships: [];
+      };
+      project_costs: {
+        Row: ProjectCostRecord;
+        Insert: Omit<ProjectCostRecord, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<ProjectCostRecord, "id" | "project_id">>;
+        Relationships: [];
+      };
+      project_milestones: {
+        Row: ProjectMilestoneRecord;
+        Insert: Omit<
+          ProjectMilestoneRecord,
+          "id" | "created_at" | "updated_at"
+        > & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<ProjectMilestoneRecord, "id" | "project_id">>;
         Relationships: [];
       };
       project_messages: {

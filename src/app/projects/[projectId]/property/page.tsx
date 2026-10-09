@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { getProjectWorkspace } from "@/lib/data/projects";
+import { PropertyMap } from "@/components/maps/property-map";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function PropertyPage({
@@ -14,6 +15,9 @@ export default async function PropertyPage({
   const jurisdiction = property
     ? `${property.city}, ${property.state}${property.county ? ` · ${property.county} County` : ""}`
     : "Not identified";
+  const address = property
+    ? `${property.address_line_1}, ${property.city}, ${property.state} ${property.postal_code}`
+    : project.name;
 
   return (
     <div className="space-y-6">
@@ -36,6 +40,13 @@ export default async function PropertyPage({
               ["County", property?.county ?? "Not added"],
               ["State", property?.state],
               ["ZIP", property?.postal_code],
+              ["Google address", property?.formatted_address ?? "Not located"],
+              [
+                "Coordinates",
+                property?.latitude != null && property?.longitude != null
+                  ? `${property.latitude}, ${property.longitude}`
+                  : "Not located",
+              ],
               ["Parcel number", property?.parcel_number ?? "Not added"],
               ["Project type", project.project_type],
               ["Jurisdiction", jurisdiction],
@@ -53,11 +64,11 @@ export default async function PropertyPage({
             <CardTitle>Map</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex aspect-square items-center justify-center rounded-lg border bg-muted/40 text-center text-sm text-muted-foreground">
-              Map preview placeholder.
-              <br />
-              Add Google Maps or Mapbox credentials to enable live mapping.
-            </div>
+            <PropertyMap
+              address={address}
+              latitude={property?.latitude ?? null}
+              longitude={property?.longitude ?? null}
+            />
           </CardContent>
         </Card>
       </div>

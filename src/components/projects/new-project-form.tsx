@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Home, MapPin, Sparkles } from "lucide-react";
 import { createProjectAction, type ProjectFormState } from "@/lib/actions/projects";
 import { projectTypes } from "@/lib/constants";
+import { AddressLocator, type LocatedAddress } from "@/components/maps/address-locator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,11 @@ export function NewProjectForm() {
   const [city, setCity] = useState("");
   const [stateValue, setStateValue] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [county, setCounty] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [googlePlaceId, setGooglePlaceId] = useState("");
+  const [formattedAddress, setFormattedAddress] = useState("");
   const [description, setDescription] = useState("");
   const [formState, formAction, pending] = useActionState(
     createProjectAction,
@@ -33,6 +39,18 @@ export function NewProjectForm() {
     if (step === 3) return description.length >= 8;
     return true;
   }, [addressLine1, city, description, postalCode, projectType, stateValue, step]);
+
+  function handleLocatedAddress(address: LocatedAddress) {
+    setAddressLine1(address.addressLine1);
+    setCity(address.city);
+    setStateValue(address.state);
+    setPostalCode(address.postalCode);
+    setCounty(address.county);
+    setLatitude(address.latitude);
+    setLongitude(address.longitude);
+    setGooglePlaceId(address.googlePlaceId);
+    setFormattedAddress(address.formattedAddress);
+  }
 
   return (
     <Card className="border-border/80 shadow-sm">
@@ -54,6 +72,11 @@ export function NewProjectForm() {
           <input name="city" type="hidden" value={city} />
           <input name="state" type="hidden" value={stateValue} />
           <input name="postalCode" type="hidden" value={postalCode} />
+          <input name="county" type="hidden" value={county} />
+          <input name="latitude" type="hidden" value={latitude} />
+          <input name="longitude" type="hidden" value={longitude} />
+          <input name="googlePlaceId" type="hidden" value={googlePlaceId} />
+          <input name="formattedAddress" type="hidden" value={formattedAddress} />
           <input name="description" type="hidden" value={description} />
 
           {step === 1 && (
@@ -123,9 +146,13 @@ export function NewProjectForm() {
                   />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Address autocomplete can be added later with Google Maps or Mapbox.
-              </p>
+              <AddressLocator
+                addressLine1={addressLine1}
+                city={city}
+                onLocate={handleLocatedAddress}
+                postalCode={postalCode}
+                stateValue={stateValue}
+              />
             </section>
           )}
 
@@ -160,6 +187,17 @@ export function NewProjectForm() {
                   <span className="font-medium">Property:</span> {addressLine1}, {city},{" "}
                   {stateValue} {postalCode}
                 </p>
+                {formattedAddress && (
+                  <p>
+                    <span className="font-medium">Located:</span> {formattedAddress}
+                  </p>
+                )}
+                {latitude && longitude && (
+                  <p>
+                    <span className="font-medium">Coordinates:</span> {latitude},{" "}
+                    {longitude}
+                  </p>
+                )}
                 <p><span className="font-medium">Goal:</span> {description}</p>
               </div>
             </section>

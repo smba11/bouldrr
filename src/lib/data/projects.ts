@@ -5,6 +5,8 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type {
   DocumentRecord,
+  ProjectCostRecord,
+  ProjectMilestoneRecord,
   ProjectMessageRecord,
   ProjectRecord,
   ProjectTaskRecord,
@@ -21,6 +23,8 @@ export type ProjectWorkspace = ProjectRecord & {
   properties: PropertyRecord[];
   project_tasks: ProjectTaskRecord[];
   documents: DocumentRecord[];
+  project_costs: ProjectCostRecord[];
+  project_milestones: ProjectMilestoneRecord[];
   project_messages: ProjectMessageRecord[];
 };
 
@@ -51,7 +55,7 @@ export const getProjectWorkspace = cache(
     const { data, error } = await supabase
       .from("projects")
       .select(
-        "*, properties(*), project_tasks(*), documents(*), project_messages(*)",
+        "*, properties(*), project_tasks(*), documents(*), project_costs(*), project_milestones(*), project_messages(*)",
       )
       .eq("id", projectId)
       .eq("user_id", userId)
@@ -71,6 +75,12 @@ export const getProjectWorkspace = cache(
         new Date(second.created_at).getTime() -
         new Date(first.created_at).getTime()
       );
+    });
+    workspace.project_costs.sort((first, second) => {
+      return first.category.localeCompare(second.category);
+    });
+    workspace.project_milestones.sort((first, second) => {
+      return first.sort_order - second.sort_order;
     });
     workspace.project_messages.sort((first, second) => {
       return (

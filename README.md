@@ -10,8 +10,12 @@ copilot abstraction.
 
 - Supabase Auth sign up, sign in, sign out, and protected app routes.
 - Project dashboard and multi-step project creation flow.
+- Google Maps address location during project creation when
+  `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is configured.
 - Property workspace with overview, property details, task plan, documents, and copilot.
+- Expanded workspace sections for feasibility, regulations, costs, and timeline.
 - Seeded starter task structure across due diligence, zoning, design, financing, permits, construction, inspections, and completion.
+- Rich task records with local authority, source URL, dependencies, assignment, notes, deadlines, and detailed statuses.
 - Supabase Storage upload/delete flow for project documents.
 - Database design that separates official sources, extracted regulations, and Bouldrr summaries.
 - Copilot UI and server-side provider layer. The app runs without `OPENAI_API_KEY` and returns a graceful disabled message until one is added.
@@ -50,6 +54,7 @@ Optional:
 - `OPENAI_API_KEY`: enables live copilot responses.
 - `OPENAI_MODEL`: defaults to `gpt-5-mini`.
 - Map keys are reserved for later Google Maps or Mapbox integration.
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: enables address geocoding and live property maps. Enable the Maps JavaScript API for the key.
 
 ## Supabase Setup
 
@@ -77,6 +82,28 @@ npm run lint
 npm run typecheck
 npm run build
 ```
+
+## First Flow To Verify
+
+After Vercel environment variables are configured and pulled locally:
+
+```bash
+vercel env pull .env.local --yes
+npm run dev
+```
+
+Verify:
+
+1. Sign up or sign in with Supabase Auth.
+2. Create a project.
+3. Enter an address and click **Locate** to resolve it with Google Maps.
+4. Save the project to Supabase.
+5. Open the project workspace.
+6. Review seeded tasks.
+7. Upload and delete a document.
+
+If the Google Maps key is absent, Bouldrr keeps manual address entry working and
+shows a local configuration message instead of failing the project form.
 
 ## Deployment Notes
 

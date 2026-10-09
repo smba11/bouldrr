@@ -1,4 +1,4 @@
-import type { TaskPriority } from "@/lib/types";
+import type { TaskPriority, TaskStatus } from "@/lib/types";
 
 export const projectTypes = [
   "New Construction",
@@ -25,7 +25,23 @@ export const documentTypes = [
   "Other",
 ] as const;
 
+export const costCategories = [
+  "Land",
+  "Permits",
+  "Architecture",
+  "Engineering",
+  "Construction",
+  "Utilities",
+  "Financing",
+  "Taxes",
+  "Insurance",
+  "Contingency",
+  "Selling",
+  "Other",
+] as const;
+
 export const taskCategories = [
+  "Acquisition",
   "Due Diligence",
   "Zoning",
   "Design",
@@ -36,6 +52,16 @@ export const taskCategories = [
   "Completion",
 ] as const;
 
+export const taskStatusLabels: Record<TaskStatus, string> = {
+  not_started: "Not Started",
+  in_progress: "In Progress",
+  waiting: "Waiting",
+  blocked: "Blocked",
+  submitted: "Submitted",
+  approved: "Approved",
+  complete: "Complete",
+};
+
 export type TaskSeed = {
   category: (typeof taskCategories)[number];
   title: string;
@@ -43,9 +69,28 @@ export type TaskSeed = {
   instructions: string;
   priority: TaskPriority;
   sortOrder: number;
+  localAuthority?: string;
+  documentsNeeded?: string[];
+  processingTime?: string;
+  dependencyNotes?: string;
 };
 
 export const starterTasks: TaskSeed[] = [
+  {
+    category: "Acquisition",
+    title: "Clarify purchase or ownership status",
+    description:
+      "Identify whether the project starts from an owned property, active purchase, or early investigation.",
+    instructions:
+      "Record the purchase status, known deadlines, contingencies, and decision date. Add listing, title, or offer documents when available.",
+    priority: "high",
+    sortOrder: 5,
+    localAuthority: "Broker, title company, or property owner",
+    documentsNeeded: ["Purchase agreement", "Listing packet", "Title report"],
+    processingTime: "1-3 days",
+    dependencyNotes:
+      "A clear acquisition status keeps due diligence and permit work tied to real deadlines.",
+  },
   {
     category: "Due Diligence",
     title: "Confirm ownership and parcel basics",
@@ -55,6 +100,11 @@ export const starterTasks: TaskSeed[] = [
       "Find the county assessor record, confirm the parcel number, compare the listed address with your project address, and save any assessor or title documents to the project.",
     priority: "high",
     sortOrder: 10,
+    localAuthority: "County assessor or recorder",
+    documentsNeeded: ["Assessor record", "Title report", "Parcel map"],
+    processingTime: "Same day to 3 days",
+    dependencyNotes:
+      "Parcel basics should be confirmed before feasibility, zoning, or permit conclusions are treated as project facts.",
   },
   {
     category: "Zoning",
@@ -65,6 +115,11 @@ export const starterTasks: TaskSeed[] = [
       "Search the official city or county planning site for the parcel, note the zoning district, and attach a link or PDF source before relying on any summary.",
     priority: "high",
     sortOrder: 20,
+    localAuthority: "City or county planning department",
+    documentsNeeded: ["Zoning map", "Zoning code excerpt", "Overlay map"],
+    processingTime: "Same day to 1 week",
+    dependencyNotes:
+      "Design scope and permit path depend on the verified zoning district and overlays.",
   },
   {
     category: "Design",
@@ -75,6 +130,9 @@ export const starterTasks: TaskSeed[] = [
       "Write the intended use, approximate unit count or square footage, known constraints, and open questions. Upload sketches or site plans when available.",
     priority: "medium",
     sortOrder: 30,
+    localAuthority: "Designer, architect, or project lead",
+    documentsNeeded: ["Concept sketch", "Site plan", "Program notes"],
+    processingTime: "1-2 weeks",
   },
   {
     category: "Financing",
@@ -85,6 +143,9 @@ export const starterTasks: TaskSeed[] = [
       "List acquisition, design, permit, utility, construction, contingency, and carrying costs. Mark unknown line items instead of guessing.",
     priority: "medium",
     sortOrder: 40,
+    localAuthority: "Lender, estimator, or owner",
+    documentsNeeded: ["Budget worksheet", "Loan terms", "Comparable bids"],
+    processingTime: "1-2 weeks",
   },
   {
     category: "Permits",
@@ -95,6 +156,11 @@ export const starterTasks: TaskSeed[] = [
       "Check the official building or planning department website for required applications. Capture the source URL and note whether planning review is separate from building permits.",
     priority: "high",
     sortOrder: 50,
+    localAuthority: "Planning or building department",
+    documentsNeeded: ["Permit checklist", "Application forms", "Fee schedule"],
+    processingTime: "Same day to 2 weeks",
+    dependencyNotes:
+      "Do not submit a building permit until the local planning path and required pre-approvals are known.",
   },
   {
     category: "Construction",
@@ -105,6 +171,9 @@ export const starterTasks: TaskSeed[] = [
       "Create a list for plans, engineering, survey, site plan, energy documents, contractor bids, and insurance requirements.",
     priority: "medium",
     sortOrder: 60,
+    localAuthority: "General contractor or permit coordinator",
+    documentsNeeded: ["Plan set", "Engineering", "Contractor bids"],
+    processingTime: "1-4 weeks",
   },
   {
     category: "Inspections",
@@ -115,6 +184,9 @@ export const starterTasks: TaskSeed[] = [
       "Use the local building department source to identify likely inspections such as foundation, framing, rough MEP, insulation, and final.",
     priority: "medium",
     sortOrder: 70,
+    localAuthority: "Building department",
+    documentsNeeded: ["Inspection schedule", "Approved plans", "Correction notices"],
+    processingTime: "During construction",
   },
   {
     category: "Completion",
@@ -125,5 +197,8 @@ export const starterTasks: TaskSeed[] = [
       "Track certificate of occupancy or final signoff requirements, warranty documents, lien releases, and final plan sets.",
     priority: "low",
     sortOrder: 80,
+    localAuthority: "Building department, title company, or project owner",
+    documentsNeeded: ["Final approval", "Warranty documents", "Lien releases"],
+    processingTime: "1-4 weeks",
   },
 ];

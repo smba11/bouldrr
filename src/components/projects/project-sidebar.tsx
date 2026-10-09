@@ -5,12 +5,16 @@ import { usePathname } from "next/navigation";
 import {
   Bot,
   Building2,
+  CalendarClock,
   ClipboardList,
   FileText,
   Home,
   LayoutDashboard,
   Menu,
+  Scale,
   Settings,
+  ShieldCheck,
+  WalletCards,
 } from "lucide-react";
 import { taskCategories } from "@/lib/constants";
 import type { ProjectWorkspace } from "@/lib/data/projects";
@@ -34,8 +38,12 @@ function SidebarContent({ project }: ProjectSidebarProps) {
   const links = [
     { href: `/projects/${project.id}`, label: "Overview", icon: LayoutDashboard },
     { href: `/projects/${project.id}/property`, label: "Property", icon: Building2 },
-    { href: `/projects/${project.id}/tasks`, label: "Project Plan", icon: ClipboardList },
+    { href: `/projects/${project.id}/feasibility`, label: "Feasibility", icon: Scale },
+    { href: `/projects/${project.id}/regulations`, label: "Regulations", icon: ShieldCheck },
+    { href: `/projects/${project.id}/tasks`, label: "Tasks", icon: ClipboardList },
     { href: `/projects/${project.id}/documents`, label: "Documents", icon: FileText },
+    { href: `/projects/${project.id}/costs`, label: "Costs", icon: WalletCards },
+    { href: `/projects/${project.id}/timeline`, label: "Timeline", icon: CalendarClock },
     { href: `/projects/${project.id}/copilot`, label: "Copilot", icon: Bot },
   ];
 
