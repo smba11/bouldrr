@@ -78,7 +78,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               <AlertDescription>{state.message}</AlertDescription>
             </Alert>
           )}
-          <Button className="w-full" disabled={pending}>
+          <Button className="w-full" disabled={pending} type="submit">
             {pending ? "Working..." : isSignup ? "Create account" : "Sign in"}
           </Button>
         </form>
