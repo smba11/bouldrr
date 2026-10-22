@@ -1,44 +1,65 @@
-import { updateSettingsAction } from "@/lib/actions/settings";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
-type SettingsFormProps = {
-  fullName?: string | null;
-  preferredLanguage?: string | null;
-};
-
+"use client";
+import { useActionState } from "react";
+import {
+  updateSettingsAction,
+  type SettingsState,
+} from "@/lib/actions/settings";
 export function SettingsForm({
   fullName,
-  preferredLanguage = "en",
-}: SettingsFormProps) {
+  preferredLanguage,
+}: {
+  fullName?: string | null;
+  preferredLanguage?: string | null;
+}) {
+  const [state, action, pending] = useActionState(
+    updateSettingsAction,
+    {} as SettingsState,
+  );
   return (
-    <Card className="max-w-2xl shadow-sm">
-      <CardHeader>
-        <CardTitle>Profile</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form action={updateSettingsAction} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="fullName">Full name</Label>
-            <Input id="fullName" name="fullName" defaultValue={fullName ?? ""} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="preferredLanguage">Preferred language</Label>
-            <select
-              className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
-              defaultValue={preferredLanguage ?? "en"}
-              id="preferredLanguage"
-              name="preferredLanguage"
-            >
-              <option value="en">English</option>
-              <option value="es">Spanish</option>
-            </select>
-          </div>
-          <Button type="submit">Save settings</Button>
-        </form>
-      </CardContent>
-    </Card>
+    <form
+      action={action}
+      className="max-w-xl space-y-6 rounded-2xl border bg-white p-6"
+    >
+      <h2 className="text-base font-semibold">Your profile</h2>
+      <label className="block text-xs font-medium">
+        Full name
+        <input
+          className="field mt-2"
+          name="fullName"
+          defaultValue={fullName ?? ""}
+          minLength={2}
+          maxLength={120}
+          required
+        />
+      </label>
+      <label className="block text-xs font-medium">
+        Preferred language
+        <select
+          className="field mt-2"
+          name="preferredLanguage"
+          defaultValue={preferredLanguage ?? "en"}
+        >
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+        </select>
+      </label>
+      <p className="text-xs leading-6 text-muted-foreground">
+        This saves your preference for future translations. The interface
+        currently uses English.
+      </p>
+      <button className="button-primary" disabled={pending}>
+        {pending ? "Saving…" : "Save profile"}
+      </button>
+      {state.error && (
+        <p role="alert" className="error-message">
+          {state.error}
+        </p>
+      )}
+      {state.success && (
+        <p role="status" className="success-message">
+          Your profile is saved.
+        </p>
+      )}
+    </form>
   );
 }

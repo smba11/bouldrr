@@ -1,3 +1,5 @@
+import type { ConceptConfiguration, MapFeature } from "@/lib/site-design";
+
 export type Json =
   | string
   | number
@@ -18,10 +20,7 @@ export type TaskStatus =
 export type TaskPriority = "low" | "medium" | "high";
 export type MessageRole = "user" | "assistant" | "system";
 export type MilestoneStatus =
-  | "not_started"
-  | "in_progress"
-  | "blocked"
-  | "complete";
+  "not_started" | "in_progress" | "blocked" | "complete";
 
 export type ProjectRecord = {
   id: string;
@@ -47,6 +46,7 @@ export type PropertyRecord = {
   longitude: number | null;
   parcel_number: string | null;
   google_place_id: string | null;
+  jurisdiction_id?: string | null;
   formatted_address: string | null;
   created_at: string;
   updated_at: string;
@@ -72,6 +72,7 @@ export type ProjectTaskRecord = {
   assigned_to: string | null;
   notes: string | null;
   source_url: string | null;
+  depends_on_id: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -108,6 +109,7 @@ export type JurisdictionRecord = {
 };
 
 export type RegulationSourceRecord = {
+  verification_status: "verified" | "needs_review" | "missing_source";
   id: string;
   jurisdiction_id: string;
   title: string;
@@ -163,6 +165,54 @@ export type ProjectMilestoneRecord = {
 export type Database = {
   public: {
     Tables: {
+      site_designs: {
+        Row: {
+          id: string;
+          project_id: string;
+          name: string;
+          configuration: ConceptConfiguration;
+          revision: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          project_id: string;
+          name?: string;
+          configuration?: Json;
+          revision?: number;
+        };
+        Update: { name?: string; configuration?: Json; revision?: number };
+        Relationships: [];
+      };
+      map_features: {
+        Row: MapFeature & {
+          design_id: string;
+          project_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: MapFeature & { design_id: string; project_id: string };
+        Update: Partial<MapFeature>;
+        Relationships: [];
+      };
+      project_activity: {
+        Row: {
+          id: string;
+          project_id: string;
+          actor_id: string | null;
+          event_type: string;
+          description: string;
+          created_at: string;
+        };
+        Insert: {
+          project_id: string;
+          actor_id?: string;
+          event_type: string;
+          description: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -203,7 +253,15 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Omit<PropertyRecord, "id" | "project_id">>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "properties_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       project_tasks: {
         Row: ProjectTaskRecord;
@@ -221,7 +279,9 @@ export type Database = {
           id?: string;
           created_at?: string;
         };
-        Update: Partial<Omit<DocumentRecord, "id" | "project_id" | "uploaded_by">>;
+        Update: Partial<
+          Omit<DocumentRecord, "id" | "project_id" | "uploaded_by">
+        >;
         Relationships: [];
       };
       project_costs: {
@@ -286,7 +346,13 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      create_project_workspace: {
+        Args: { input: Json; tasks: Json };
+        Returns: string;
+      };
+      save_site_design: { Args: { input: Json }; Returns: number };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

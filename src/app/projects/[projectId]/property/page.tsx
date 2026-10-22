@@ -1,85 +1,170 @@
 import { requireUser } from "@/lib/auth";
-import { getProjectWorkspace } from "@/lib/data/projects";
-import { PropertyMap } from "@/components/maps/property-map";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
+import { getProjectShell, getSiteDesign } from "@/lib/data/projects";
+import { PropertyWorkspace } from "@/components/maps/property-workspace";
+import {
+  PageHeader,
+  InformationPanel,
+  SourceBadge,
+  EmptyState,
+  StatusBadge,
+} from "@/components/workspace/primitives";
+import { PropertyEditor } from "@/components/projects/property-editor";
 export default async function PropertyPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ mode?: string }>;
 }) {
-  const { projectId } = await params;
+  const [{ projectId }, query] = await Promise.all([params, searchParams]);
   const user = await requireUser();
-  const project = await getProjectWorkspace(projectId, user.id);
-  const property = project.properties[0];
-  const jurisdiction = property
-    ? `${property.city}, ${property.state}${property.county ? ` · ${property.county} County` : ""}`
-    : "Not identified";
-  const address = property
-    ? `${property.address_line_1}, ${property.city}, ${property.state} ${property.postal_code}`
-    : project.name;
-
+  const [project, design] = await Promise.all([
+    getProjectShell(projectId, user.id),
+    getSiteDesign(projectId, user.id),
+  ]);
+  const p = project.properties[0];
+  const address =
+    p?.formatted_address ??
+    [p?.address_line_1, p?.city, p?.state, p?.postal_code]
+      .filter(Boolean)
+      .join(", ");
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Property</h1>
-        <p className="mt-2 text-muted-foreground">
-          Bouldrr identifies jurisdiction from the address fields for now.
-          Geocoding and parcel integrations can be added behind this page later.
-        </p>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Property overview</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="The ground beneath your idea"
+        title="Property"
+        description="See the place. Understand the context. Shape what comes next."
+      />
+      <PropertyWorkspace
+        projectId={projectId}
+        address={address}
+        latitude={p?.latitude ?? null}
+        longitude={p?.longitude ?? null}
+        initialFeatures={design.features}
+        sourceFeatures={design.sourceFeatures}
+        initialRevision={design.revision}
+        initialConfiguration={design.configuration}
+        initialMode={
+          query.mode === "design"
+            ? "design"
+            : query.mode === "analyze"
+              ? "analyze"
+              : "view"
+        }
+      />
+      <div className="grid gap-5 xl:grid-cols-3">
+        <InformationPanel title="Property details">
+          <SourceBadge type={p?.google_place_id ? "derived" : "user"} />
+          <dl className="mt-4 divide-y">
             {[
-              ["Address", property?.address_line_1],
-              ["City", property?.city],
-              ["County", property?.county ?? "Not added"],
-              ["State", property?.state],
-              ["ZIP", property?.postal_code],
-              ["Google address", property?.formatted_address ?? "Not located"],
+              ["Address", p?.address_line_1],
+              ["City", p?.city],
+              ["County", p?.county],
+              ["State", p?.state],
+              ["Postal code", p?.postal_code],
               [
                 "Coordinates",
-                property?.latitude != null && property?.longitude != null
-                  ? `${property.latitude}, ${property.longitude}`
-                  : "Not located",
+                p?.latitude != null && p?.longitude != null
+                  ? `${Number(p.latitude).toFixed(6)}, ${Number(p.longitude).toFixed(6)}`
+                  : null,
               ],
-              ["Parcel number", property?.parcel_number ?? "Not added"],
-              ["Project type", project.project_type],
-              ["Jurisdiction", jurisdiction],
-              ["Zoning", "Not verified yet"],
+              ["Parcel ID", p?.parcel_number],
             ].map(([label, value]) => (
-              <div className="rounded-lg border p-3" key={label}>
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="mt-1 font-medium">{value}</p>
+              <div
+                className="flex flex-wrap justify-between gap-2 py-3 text-xs"
+                key={label}
+              >
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className="max-w-full break-words text-right">
+                  {value || "Not yet available"}
+                </dd>
               </div>
             ))}
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Map</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PropertyMap
-              address={address}
-              latitude={property?.latitude ?? null}
-              longitude={property?.longitude ?? null}
-            />
-          </CardContent>
-        </Card>
+          </dl>
+        </InformationPanel>
+        <InformationPanel title="Project direction">
+          <SourceBadge type="user" />
+          <p className="mt-5 text-base font-medium">{project.project_type}</p>
+          <p className="mt-3 text-sm leading-7 text-muted-foreground">
+            {project.description}
+          </p>
+          <div className="mt-6 border-t pt-4">
+            <p className="mb-2 text-xs text-muted-foreground">Project stage</p>
+            <StatusBadge status={project.status} />
+          </div>
+        </InformationPanel>
+        <InformationPanel title="Jurisdiction">
+          <p className="text-xs leading-6 text-muted-foreground">
+            Address context is preliminary. The responsible planning authority
+            still needs confirmation.
+          </p>
+          <ol className="mt-5 space-y-4 text-xs">
+            {[
+              ["Federal", "Not yet confirmed"],
+              ["State", p?.state],
+              ["County", p?.county],
+              ["Municipality", p?.city],
+              ["District", null],
+              ["Parcel", p?.parcel_number],
+            ].map(([label, value]) => (
+              <li
+                key={label}
+                className="flex justify-between gap-3 border-l-2 border-primary/20 pl-3"
+              >
+                <span className="text-muted-foreground">{label}</span>
+                <span className="text-right">
+                  {value || "Not yet available"}
+                </span>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-5 text-[10px] leading-5 text-muted-foreground">
+            Address data does not establish regulatory jurisdiction.
+          </p>
+        </InformationPanel>
       </div>
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Project notes</CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground">
-          {project.description}
-        </CardContent>
-      </Card>
+      <InformationPanel title="What we know—and what we need">
+        <div className="grid gap-6 md:grid-cols-2">
+          <div>
+            <p className="mb-3 text-xs font-medium">Known information</p>
+            <ul className="space-y-3 text-xs text-muted-foreground">
+              <li>Property address: {p ? "provided" : "not yet available"}</li>
+              <li>
+                Location:{" "}
+                {p?.latitude != null ? "coordinates saved" : "not yet located"}
+              </li>
+              <li>
+                Site concept: {design.features.length} user-created objects
+              </li>
+            </ul>
+            <p className="mt-4 text-[10px] text-muted-foreground">
+              {p?.google_place_id
+                ? "Address location from Google geocoding."
+                : "Property details are user provided."}
+            </p>
+          </div>
+          <div>
+            <p className="mb-3 text-xs font-medium">Still needs verification</p>
+            <ul className="space-y-3 text-xs text-muted-foreground">
+              <li>Legal parcel boundary and survey</li>
+              <li>Zoning district, setbacks, and permitted uses</li>
+              <li>Environmental constraints and utilities</li>
+              <li>Responsible planning and permitting authorities</li>
+            </ul>
+            <p className="mt-4">
+              <SourceBadge type="unknown" />
+            </p>
+          </div>
+        </div>
+      </InformationPanel>
+      {!design.features.length && (
+        <EmptyState
+          compact
+          title="No parcel boundary is connected yet."
+          description="Open Site concept to draw a manual boundary or place a building idea. User drawings stay clearly separate from verified parcel data."
+        />
+      )}
+      {p && <PropertyEditor property={p} />}
     </div>
   );
 }

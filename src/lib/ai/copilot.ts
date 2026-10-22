@@ -12,6 +12,7 @@ export type CopilotResult = {
 export async function askProjectCopilot(
   project: ProjectWorkspace,
   prompt: string,
+  regulationsContext = "No matched official sources.",
 ): Promise<CopilotResult> {
   if (!isOpenAIEnabled()) {
     return {
@@ -59,6 +60,10 @@ export async function askProjectCopilot(
 Project type: ${project.project_type}
 Description: ${project.description}
 Property: ${property ? `${property.address_line_1}, ${property.city}, ${property.state} ${property.postal_code}` : "No property"}
+Jurisdiction:
+${[property?.city, property?.county, property?.state].filter(Boolean).join(", ") || "Unknown"}
+Regulatory source records (not legal conclusions):
+${regulationsContext}
 Tasks:
 ${taskSummary}
 Documents:

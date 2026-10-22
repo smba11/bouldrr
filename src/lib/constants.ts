@@ -1,14 +1,14 @@
 import type { TaskPriority, TaskStatus } from "@/lib/types";
 
 export const projectTypes = [
+  "Evaluate Property",
   "New Construction",
   "Renovation",
   "Fix & Flip",
-  "Addition",
   "ADU",
-  "Multifamily Development",
-  "Commercial Development",
-  "Land Evaluation",
+  "Multifamily",
+  "Commercial",
+  "Land Development",
   "Other",
 ] as const;
 
@@ -22,6 +22,7 @@ export const documentTypes = [
   "Engineering",
   "Architecture",
   "Tax",
+  "Environmental",
   "Other",
 ] as const;
 
@@ -43,10 +44,12 @@ export const costCategories = [
 export const taskCategories = [
   "Acquisition",
   "Due Diligence",
+  "Site Analysis",
   "Zoning",
   "Design",
   "Financing",
   "Permits",
+  "Pre-Construction",
   "Construction",
   "Inspections",
   "Completion",
@@ -185,7 +188,11 @@ export const starterTasks: TaskSeed[] = [
     priority: "medium",
     sortOrder: 70,
     localAuthority: "Building department",
-    documentsNeeded: ["Inspection schedule", "Approved plans", "Correction notices"],
+    documentsNeeded: [
+      "Inspection schedule",
+      "Approved plans",
+      "Correction notices",
+    ],
     processingTime: "During construction",
   },
   {

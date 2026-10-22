@@ -1,7 +1,7 @@
 import { DocumentManager } from "@/components/documents/document-manager";
+import { PageHeader } from "@/components/workspace/primitives";
 import { requireUser } from "@/lib/auth";
 import { getProjectWorkspace } from "@/lib/data/projects";
-
 export default async function DocumentsPage({
   params,
 }: {
@@ -9,17 +9,15 @@ export default async function DocumentsPage({
 }) {
   const { projectId } = await params;
   const user = await requireUser();
-  const project = await getProjectWorkspace(projectId, user.id);
-
+  const p = await getProjectWorkspace(projectId, user.id, "documents");
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Documents</h1>
-        <p className="mt-2 text-muted-foreground">
-          Upload project documents into Supabase Storage and label them for later review.
-        </p>
-      </div>
-      <DocumentManager documents={project.documents} projectId={project.id} />
+    <div>
+      <PageHeader
+        eyebrow="The details, all together"
+        title="Project documents"
+        description="Surveys, plans, approvals, and the records behind your decisions. Kept privately with your project."
+      />
+      <DocumentManager projectId={projectId} documents={p.documents} />
     </div>
   );
 }

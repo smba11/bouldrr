@@ -1,11 +1,8 @@
-import { Skeleton } from "@/components/ui/skeleton";
-
+import { LoadingSkeleton } from "@/components/workspace/primitives";
 export default function Loading() {
   return (
-    <main className="space-y-4 p-8">
-      <Skeleton className="h-8 w-64" />
-      <Skeleton className="h-32 w-full" />
-      <Skeleton className="h-32 w-full" />
+    <main className="mx-auto w-full max-w-6xl p-6 sm:p-10">
+      <LoadingSkeleton />
     </main>
   );
 }

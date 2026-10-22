@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export type AuthFormState = {
   message?: string;
+  success?: boolean;
   errors?: {
     fullName?: string[];
     email?: string[];
@@ -43,13 +44,12 @@ export async function signUpAction(
 
   if (!supabase) {
     return {
-      message:
-        "Supabase is not configured yet. Add the public Supabase variables to run authentication.",
+      message: "Account access isn’t connected yet. Please try again later.",
     };
   }
 
   const origin = (await headers()).get("origin");
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
@@ -61,9 +61,21 @@ export async function signUpAction(
   });
 
   if (error) {
-    return { message: error.message };
+    return {
+      message:
+        error.status === 429
+          ? "Too many attempts. Please wait a moment and try again."
+          : "We couldn’t create your account. Check your details and try again.",
+    };
   }
 
+  if (!data.session) {
+    return {
+      success: true,
+      message:
+        "Check your email to confirm your account, then sign in. You can close this page and return after confirming.",
+    };
+  }
   redirect("/dashboard");
 }
 
@@ -84,15 +96,19 @@ export async function signInAction(
 
   if (!supabase) {
     return {
-      message:
-        "Supabase is not configured yet. Add the public Supabase variables to sign in.",
+      message: "Account access isn’t connected yet. Please try again later.",
     };
   }
 
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
-    return { message: error.message };
+    return {
+      message:
+        error.status === 429
+          ? "Too many attempts. Please wait a moment and try again."
+          : "We couldn’t sign you in. Check your email and password, and make sure your email is confirmed.",
+    };
   }
 
   redirect("/dashboard");

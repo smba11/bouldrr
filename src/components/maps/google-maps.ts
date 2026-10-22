@@ -1,119 +1,45 @@
 "use client";
-
-type LatLng = {
-  lat: () => number;
-  lng: () => number;
-};
-
-export type GoogleAddressComponent = {
-  long_name: string;
-  short_name: string;
-  types: string[];
-};
-
-export type GoogleGeocodeResult = {
-  address_components: GoogleAddressComponent[];
-  formatted_address: string;
-  geometry: {
-    location: LatLng;
-  };
-  place_id: string;
-};
-
-export type GoogleMapsRuntime = {
-  maps: {
-    Geocoder: new () => {
-      geocode: (
-        request: { address: string },
-        callback: (
-          results: GoogleGeocodeResult[] | null,
-          status: string,
-        ) => void,
-      ) => void;
-    };
-    GeocoderStatus: {
-      OK: string;
-    };
-    Map: new (
-      element: HTMLElement,
-      options: {
-        center: { lat: number; lng: number };
-        disableDefaultUI?: boolean;
-        mapTypeControl?: boolean;
-        streetViewControl?: boolean;
-        zoom: number;
-      },
-    ) => {
-      setCenter: (center: { lat: number; lng: number }) => void;
-      setZoom: (zoom: number) => void;
-    };
-    Marker: new (options: {
-      map: {
-        setCenter: (center: { lat: number; lng: number }) => void;
-        setZoom: (zoom: number) => void;
-      };
-      position: { lat: number; lng: number };
-    }) => {
-      setPosition: (position: { lat: number; lng: number }) => void;
-    };
-  };
-};
-
+export type GoogleAddressComponent = google.maps.GeocoderAddressComponent;
+export type GoogleGeocodeResult = google.maps.GeocoderResult;
+export type GoogleMapsRuntime = typeof google;
 declare global {
   interface Window {
-    google?: GoogleMapsRuntime;
+    __bouldrrMapsReady?: () => void;
+    gm_authFailure?: () => void;
   }
 }
-
-let loadingPromise: Promise<GoogleMapsRuntime> | null = null;
-
-export function loadGoogleMaps(apiKey: string) {
-  if (window.google) {
-    return Promise.resolve(window.google);
-  }
-
-  if (loadingPromise) {
-    return loadingPromise;
-  }
-
-  loadingPromise = new Promise((resolve, reject) => {
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      "script[data-bouldrr-google-maps]",
-    );
-
-    if (existingScript) {
-      existingScript.addEventListener("load", () => {
-        if (window.google) {
-          resolve(window.google);
-        } else {
-          reject(new Error("Google Maps did not initialize."));
-        }
-      });
-      existingScript.addEventListener("error", () => {
-        reject(new Error("Google Maps failed to load."));
-      });
-      return;
-    }
-
+let loading: Promise<GoogleMapsRuntime> | null = null;
+export function loadGoogleMaps(apiKey: string): Promise<GoogleMapsRuntime> {
+  if (typeof google !== "undefined") return Promise.resolve(google);
+  if (loading) return loading;
+  loading = new Promise((resolve, reject) => {
     const script = document.createElement("script");
+    const timeout = window.setTimeout(() => fail(), 15000);
+    function fail() {
+      clearTimeout(timeout);
+      script?.remove();
+      loading = null;
+      reject(
+        new Error("The map couldn’t connect. Your project is still available."),
+      );
+    }
+    window.gm_authFailure = () => {
+      window.dispatchEvent(new Event("bouldrr:maps-error"));
+      fail();
+    };
+    window.__bouldrrMapsReady = () => {
+      clearTimeout(timeout);
+      if (typeof google !== "undefined") resolve(google);
+      else fail();
+    };
     script.async = true;
     script.dataset.bouldrrGoogleMaps = "true";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
-      apiKey,
-    )}&v=weekly&loading=async`;
-    script.addEventListener("load", () => {
-      if (window.google) {
-        resolve(window.google);
-      } else {
-        reject(new Error("Google Maps did not initialize."));
-      }
-    });
-    script.addEventListener("error", () => {
-      reject(new Error("Google Maps failed to load."));
-    });
+    script.src =
+      "https://maps.googleapis.com/maps/api/js?key=" +
+      encodeURIComponent(apiKey) +
+      "&v=quarterly&loading=async&callback=__bouldrrMapsReady";
+    script.onerror = fail;
     document.head.appendChild(script);
   });
-
-  return loadingPromise;
+  return loading;
 }
-

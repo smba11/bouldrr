@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/workspace/action-form";
 import { CalendarClock, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import {
@@ -30,17 +31,20 @@ export default async function TimelinePage({
 }) {
   const { projectId } = await params;
   const user = await requireUser();
-  const project = await getProjectWorkspace(projectId, user.id);
+  const project = await getProjectWorkspace(
+    projectId,
+    user.id,
+    "project_milestones",
+  );
   const phases =
     project.project_milestones.length > 0
-      ? project.project_milestones.reduce<Record<string, typeof project.project_milestones>>(
-          (accumulator, milestone) => {
-            accumulator[milestone.phase] ??= [];
-            accumulator[milestone.phase].push(milestone);
-            return accumulator;
-          },
-          {},
-        )
+      ? project.project_milestones.reduce<
+          Record<string, typeof project.project_milestones>
+        >((accumulator, milestone) => {
+          accumulator[milestone.phase] ??= [];
+          accumulator[milestone.phase].push(milestone);
+          return accumulator;
+        }, {})
       : {};
 
   return (
@@ -120,41 +124,60 @@ export default async function TimelinePage({
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <form action={updateMilestoneStatusAction} className="flex flex-wrap gap-2">
-                          <input name="projectId" type="hidden" value={project.id} />
+                        <ActionForm
+                          action={updateMilestoneStatusAction}
+                          className="flex flex-wrap gap-2"
+                        >
+                          <input
+                            name="projectId"
+                            type="hidden"
+                            value={project.id}
+                          />
                           <input
                             name="milestoneId"
                             type="hidden"
                             value={milestone.id}
                           />
-                          {Object.entries(milestoneLabels).map(([value, label]) => (
-                            <Button
-                              disabled={milestone.status === value}
-                              key={value}
-                              name="status"
-                              size="sm"
-                              type="submit"
-                              value={value}
-                              variant={
-                                milestone.status === value ? "default" : "outline"
-                              }
-                            >
-                              {label}
-                            </Button>
-                          ))}
-                        </form>
-                        <form action={deleteMilestoneAction}>
-                          <input name="projectId" type="hidden" value={project.id} />
+                          {Object.entries(milestoneLabels).map(
+                            ([value, label]) => (
+                              <Button
+                                disabled={milestone.status === value}
+                                key={value}
+                                name="status"
+                                size="sm"
+                                type="submit"
+                                value={value}
+                                variant={
+                                  milestone.status === value
+                                    ? "default"
+                                    : "outline"
+                                }
+                              >
+                                {label}
+                              </Button>
+                            ),
+                          )}
+                        </ActionForm>
+                        <ActionForm action={deleteMilestoneAction}>
+                          <input
+                            name="projectId"
+                            type="hidden"
+                            value={project.id}
+                          />
                           <input
                             name="milestoneId"
                             type="hidden"
                             value={milestone.id}
                           />
-                          <Button size="icon-sm" type="submit" variant="destructive">
+                          <Button
+                            size="icon-sm"
+                            type="submit"
+                            variant="destructive"
+                          >
                             <Trash2 className="size-4" />
                             <span className="sr-only">Delete milestone</span>
                           </Button>
-                        </form>
+                        </ActionForm>
                       </div>
                     </CardContent>
                   </Card>
@@ -172,7 +195,7 @@ export default async function TimelinePage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={createMilestoneAction} className="space-y-4">
+            <ActionForm action={createMilestoneAction} className="space-y-4">
               <input name="projectId" type="hidden" value={project.id} />
               <div className="space-y-2">
                 <Label htmlFor="phase">Phase</Label>
@@ -204,7 +227,7 @@ export default async function TimelinePage({
                 <CheckCircle2 className="size-4" />
                 Add milestone
               </Button>
-            </form>
+            </ActionForm>
           </CardContent>
         </Card>
       </div>

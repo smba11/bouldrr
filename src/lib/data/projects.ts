@@ -1,5 +1,4 @@
 import "server-only";
-
 import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -13,111 +12,210 @@ import type {
   PropertyRecord,
   RegulationRecord,
   RegulationSourceRecord,
+  Database,
 } from "@/lib/types";
+import { defaultConcept } from "@/lib/site-design";
+import {
+  conceptSchema,
+  mapFeatureSchema,
+  displayFeatureSchema,
+} from "@/lib/validation/site-design";
 
 export type DashboardProject = ProjectRecord & {
   properties: Pick<PropertyRecord, "address_line_1" | "city" | "state">[];
 };
-
-export type ProjectWorkspace = ProjectRecord & {
-  properties: PropertyRecord[];
+export type ProjectShell = ProjectRecord & { properties: PropertyRecord[] };
+export type ProjectWorkspace = ProjectShell & {
   project_tasks: ProjectTaskRecord[];
   documents: DocumentRecord[];
   project_costs: ProjectCostRecord[];
   project_milestones: ProjectMilestoneRecord[];
   project_messages: ProjectMessageRecord[];
 };
-
 export const getDashboardProjects = cache(async (userId: string) => {
-  const supabase = await createClient();
-
-  if (!supabase) {
-    return [];
-  }
-
-  const { data } = await supabase
+  const db = await createClient();
+  if (!db) return [];
+  const { data, error } = await db
     .from("projects")
-    .select("*, properties(address_line_1, city, state)")
+    .select("*, properties(address_line_1,city,state)")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
-
+  if (error)
+    throw new Error("Your projects couldn’t be loaded. Please try again.");
   return (data ?? []) as DashboardProject[];
 });
-
+export const getProjectShell = cache(async (id: string, userId: string) => {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
+  const db = await createClient();
+  if (!db) redirect("/dashboard");
+  const { data, error } = await db
+    .from("projects")
+    .select("*, properties(*)")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error)
+    throw new Error("This workspace couldn’t be loaded. Please try again.");
+  if (!data) notFound();
+  return data as ProjectShell;
+});
 export const getProjectWorkspace = cache(
-  async (projectId: string, userId: string) => {
-    const supabase = await createClient();
-
-    if (!supabase) {
-      redirect("/dashboard");
-    }
-
-    const { data, error } = await supabase
-      .from("projects")
-      .select(
-        "*, properties(*), project_tasks(*), documents(*), project_costs(*), project_milestones(*), project_messages(*)",
-      )
-      .eq("id", projectId)
-      .eq("user_id", userId)
-      .single();
-
-    if (error || !data) {
-      notFound();
-    }
-
-    const workspace = data as ProjectWorkspace;
-
-    workspace.project_tasks.sort((first, second) => {
-      return first.sort_order - second.sort_order;
-    });
-    workspace.documents.sort((first, second) => {
-      return (
-        new Date(second.created_at).getTime() -
-        new Date(first.created_at).getTime()
-      );
-    });
-    workspace.project_costs.sort((first, second) => {
-      return first.category.localeCompare(second.category);
-    });
-    workspace.project_milestones.sort((first, second) => {
-      return first.sort_order - second.sort_order;
-    });
-    workspace.project_messages.sort((first, second) => {
-      return (
-        new Date(first.created_at).getTime() -
-        new Date(second.created_at).getTime()
-      );
-    });
-
+  async (
+    id: string,
+    userId: string,
+    view = "overview",
+  ): Promise<ProjectWorkspace> => {
+    const project = await getProjectShell(id, userId);
+    const db = await createClient();
+    if (!db) redirect("/dashboard");
+    const workspace: ProjectWorkspace = {
+      ...project,
+      project_tasks: [],
+      documents: [],
+      project_costs: [],
+      project_milestones: [],
+      project_messages: [],
+    };
+    const requested =
+      view === "copilot"
+        ? [
+            "project_tasks",
+            "documents",
+            "project_costs",
+            "project_milestones",
+            "project_messages",
+          ]
+        : view === "overview"
+          ? ["project_tasks", "documents", "project_milestones"]
+          : view === "feasibility"
+            ? ["project_tasks"]
+            : [view];
+    await Promise.all(
+      requested.map(async (relation) => {
+        if (relation === "project_tasks") {
+          const r = await db
+            .from("project_tasks")
+            .select("*")
+            .eq("project_id", id)
+            .order("sort_order");
+          if (r.error) throw new Error("Tasks couldn’t be loaded.");
+          workspace.project_tasks = r.data;
+        }
+        if (relation === "documents") {
+          const r = await db
+            .from("documents")
+            .select("*")
+            .eq("project_id", id)
+            .order("created_at", { ascending: false })
+            .limit(view === "overview" ? 5 : 500);
+          if (r.error) throw new Error("Documents couldn’t be loaded.");
+          workspace.documents = r.data;
+        }
+        if (relation === "project_costs") {
+          const r = await db
+            .from("project_costs")
+            .select("*")
+            .eq("project_id", id)
+            .order("category");
+          if (r.error) throw new Error("Costs couldn’t be loaded.");
+          workspace.project_costs = r.data;
+        }
+        if (relation === "project_milestones") {
+          const r = await db
+            .from("project_milestones")
+            .select("*")
+            .eq("project_id", id)
+            .order("sort_order");
+          if (r.error) throw new Error("Timeline couldn’t be loaded.");
+          workspace.project_milestones = r.data;
+        }
+        if (relation === "project_messages") {
+          const r = await db
+            .from("project_messages")
+            .select("*")
+            .eq("project_id", id)
+            .order("created_at", { ascending: false })
+            .limit(50);
+          if (r.error) throw new Error("Conversation couldn’t be loaded.");
+          workspace.project_messages = r.data.reverse();
+        }
+      }),
+    );
     return workspace;
   },
 );
-
-export const getRegulationExample = cache(async () => {
-  const supabase = await createClient();
-
-  if (!supabase) {
+export const getProjectRegulations = cache(
+  async (projectId: string, userId: string) => {
+    const p = await getProjectShell(projectId, userId);
+    const jurisdictionId = p.properties[0]?.jurisdiction_id;
+    if (!jurisdictionId)
+      return {
+        regulations: [] as RegulationRecord[],
+        sources: [] as RegulationSourceRecord[],
+      };
+    const db = await createClient();
+    if (!db)
+      return {
+        regulations: [] as RegulationRecord[],
+        sources: [] as RegulationSourceRecord[],
+      };
+    const [rules, sources] = await Promise.all([
+      db.from("regulations").select("*").eq("jurisdiction_id", jurisdictionId),
+      db
+        .from("regulation_sources")
+        .select("*")
+        .eq("jurisdiction_id", jurisdictionId),
+    ]);
+    if (rules.error || sources.error)
+      throw new Error("Local sources couldn’t be loaded.");
+    return { regulations: rules.data, sources: sources.data };
+  },
+);
+export const getSiteDesign = cache(
+  async (projectId: string, userId: string) => {
+    await getProjectShell(projectId, userId);
+    const db = await createClient();
+    if (!db) throw new Error("Workspace unavailable.");
+    const [design, features] = await Promise.all([
+      db
+        .from("site_designs")
+        .select("*")
+        .eq("project_id", projectId)
+        .maybeSingle(),
+      db
+        .from("map_features")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("created_at"),
+    ]);
+    if (design.error || features.error)
+      throw new Error("Your site plan couldn’t be loaded. Please try again.");
+    const parsed = conceptSchema.safeParse(design.data?.configuration);
     return {
-      regulations: [] as RegulationRecord[],
-      sources: [] as RegulationSourceRecord[],
+      revision: design.data?.revision ?? 0,
+      configuration: parsed.success ? parsed.data : defaultConcept,
+      sourceFeatures: (features.data ?? [])
+        .filter((f) => f.provenance !== "user")
+        .map((f) => displayFeatureSchema.parse(f)),
+      features: (features.data ?? [])
+        .filter((f) => f.provenance === "user")
+        .map((f) => mapFeatureSchema.parse(f)),
     };
-  }
-
-  const [{ data: regulations }, { data: sources }] = await Promise.all([
-    supabase
-      .from("regulations")
+  },
+);
+export const getProjectActivity = cache(
+  async (projectId: string, userId: string) => {
+    await getProjectShell(projectId, userId);
+    const db = await createClient();
+    if (!db)
+      return [] as Database["public"]["Tables"]["project_activity"]["Row"][];
+    const { data, error } = await db
+      .from("project_activity")
       .select("*")
-      .order("created_at", { ascending: true })
-      .limit(3),
-    supabase
-      .from("regulation_sources")
-      .select("*")
-      .order("created_at", { ascending: true })
-      .limit(3),
-  ]);
-
-  return {
-    regulations: (regulations ?? []) as RegulationRecord[],
-    sources: (sources ?? []) as RegulationSourceRecord[],
-  };
-});
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(12);
+    if (error) throw new Error("Activity couldn’t be loaded.");
+    return data ?? [];
+  },
+);

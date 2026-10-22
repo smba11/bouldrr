@@ -1,34 +1,28 @@
-import Link from "next/link";
-import { SettingsForm } from "@/components/settings/settings-form";
 import { requireSupabase, requireUser } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-
+import { getDashboardProjects } from "@/lib/data/projects";
+import { SettingsForm } from "@/components/settings/settings-form";
+import { WorkspaceShell } from "@/components/workspace/shell";
+import { PageHeader } from "@/components/workspace/primitives";
 export default async function SettingsPage() {
   const user = await requireUser();
-  const supabase = await requireSupabase();
-  const { data: profile } = supabase
-    ? await supabase.from("profiles").select("*").eq("id", user.id).single()
-    : { data: null };
-
+  const db = await requireSupabase();
+  const [profile, projects] = await Promise.all([
+    db?.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+    getDashboardProjects(user.id),
+  ]);
+  if (profile?.error)
+    throw new Error("Your profile couldn’t be loaded. Try again.");
   return (
-    <main className="min-h-screen bg-muted/20 px-6 py-10">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-            <p className="mt-2 text-muted-foreground">
-              Manage your profile and localization preference.
-            </p>
-          </div>
-          <Button asChild variant="outline">
-            <Link href="/dashboard">Dashboard</Link>
-          </Button>
-        </div>
-        <SettingsForm
-          fullName={profile?.full_name}
-          preferredLanguage={profile?.preferred_language}
-        />
-      </div>
-    </main>
+    <WorkspaceShell projects={projects}>
+      <PageHeader
+        eyebrow="Make yourself at home"
+        title="Settings"
+        description="Your profile and workspace preferences."
+      />
+      <SettingsForm
+        fullName={profile?.data?.full_name}
+        preferredLanguage={profile?.data?.preferred_language}
+      />
+    </WorkspaceShell>
   );
 }

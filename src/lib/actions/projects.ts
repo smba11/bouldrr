@@ -3,9 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { costCategories, starterTasks, taskStatusLabels } from "@/lib/constants";
+import {
+  costCategories,
+  starterTasks,
+  taskStatusLabels,
+} from "@/lib/constants";
 import { requireUser, requireSupabase } from "@/lib/auth";
-import type { MilestoneStatus, TaskStatus } from "@/lib/types";
+import type { Json, MilestoneStatus, TaskStatus } from "@/lib/types";
 
 export type ProjectFormState = {
   message?: string;
@@ -13,13 +17,17 @@ export type ProjectFormState = {
 };
 
 const projectSchema = z.object({
-  projectType: z.string().min(1, "Choose a project type."),
-  addressLine1: z.string().min(3, "Enter a street address."),
-  city: z.string().min(2, "Enter a city."),
-  state: z.string().min(2, "Enter a state."),
-  postalCode: z.string().min(3, "Enter a ZIP or postal code."),
-  county: z.string().optional(),
-  description: z.string().min(8, "Describe what you want to do."),
+  projectType: z.string().trim().min(1, "Choose a project type.").max(80),
+  addressLine1: z.string().trim().min(3, "Enter a street address.").max(250),
+  city: z.string().trim().min(2, "Enter a city.").max(120),
+  state: z.string().trim().min(2, "Enter a state.").max(120),
+  postalCode: z.string().trim().min(3, "Enter a ZIP or postal code.").max(30),
+  county: z.string().max(120).optional(),
+  description: z
+    .string()
+    .trim()
+    .min(8, "Describe what you want to do.")
+    .max(5000),
   formattedAddress: z.string().optional(),
   googlePlaceId: z.string().optional(),
   latitude: z.preprocess(
@@ -27,14 +35,14 @@ const projectSchema = z.object({
       value === "" || value === null || value === undefined
         ? null
         : Number(value),
-    z.number().finite().nullable(),
+    z.number().finite().min(-90).max(90).nullable(),
   ),
   longitude: z.preprocess(
     (value) =>
       value === "" || value === null || value === undefined
         ? null
         : Number(value),
-    z.number().finite().nullable(),
+    z.number().finite().min(-180).max(180).nullable(),
   ),
 });
 
@@ -58,118 +66,67 @@ const milestoneSchema = z.object({
   notes: z.string().optional(),
 });
 
-function titleCase(value: string) {
-  return value
-    .trim()
-    .split(/\s+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ");
-}
-
 export async function createProjectAction(
   _state: ProjectFormState,
   formData: FormData,
 ): Promise<ProjectFormState> {
-  const parsed = projectSchema.safeParse({
-    projectType: formData.get("projectType"),
-    addressLine1: formData.get("addressLine1"),
-    city: formData.get("city"),
-    state: formData.get("state"),
-    postalCode: formData.get("postalCode"),
-    county: formData.get("county"),
-    description: formData.get("description"),
-    formattedAddress: formData.get("formattedAddress"),
-    googlePlaceId: formData.get("googlePlaceId"),
-    latitude: formData.get("latitude"),
-    longitude: formData.get("longitude"),
-  });
-
-  if (!parsed.success) {
+  const fields = Object.fromEntries(formData);
+  const parsed = projectSchema.safeParse(fields);
+  if (!parsed.success)
     return {
       errors: parsed.error.flatten().fieldErrors,
-      message: "Please review the highlighted fields.",
+      message: "Please review the property details and goal.",
     };
-  }
-
   const user = await requireUser();
   const supabase = await requireSupabase();
-
-  if (!supabase) {
+  if (!supabase)
+    return {
+      message: "Your workspace connection is unavailable. Please try again.",
+    };
+  const tasks = [
+    ...starterTasks,
+    {
+      category: "Site Analysis",
+      title: "Document site access and constraints",
+      description: "Record what is known before placing a building concept.",
+      instructions:
+        "Collect a survey, note road access and utilities, and ask the local authority about flood, wetlands, easements, and slope. Mark all unknowns.",
+      priority: "high",
+      sortOrder: 25,
+      documentsNeeded: ["Survey", "Utility records"],
+    },
+    {
+      category: "Pre-Construction",
+      title: "Confirm approvals before starting work",
+      description:
+        "Avoid starting work before required approvals and insurance are in place.",
+      instructions:
+        "Check approved plans, permits, contractor scope, insurance, and site safety arrangements with your project team.",
+      priority: "high",
+      sortOrder: 55,
+    },
+  ].sort((a, b) => a.sortOrder - b.sortOrder);
+  const input = {
+    ...parsed.data,
+    addressLine1: parsed.data.addressLine1.trim(),
+    city: parsed.data.city.trim(),
+    state: parsed.data.state.trim(),
+    userId: user.id,
+  };
+  const { data: id, error } = await supabase.rpc("create_project_workspace", {
+    input: input as unknown as Json,
+    tasks: tasks.map((task, index) => ({
+      ...task,
+      dependencyIndex: index > 0 ? index - 1 : null,
+    })) as unknown as Json,
+  });
+  if (error || !id)
     return {
       message:
-        "Supabase is not configured yet. Add the public Supabase variables before creating projects.",
+        "We couldn’t create your workspace. Nothing was partially saved. Please try again.",
     };
-  }
-
-  const name = `${titleCase(parsed.data.addressLine1)}, ${titleCase(
-    parsed.data.city,
-  )}`;
-
-  const { data: project, error: projectError } = await supabase
-    .from("projects")
-    .insert({
-      user_id: user.id,
-      name,
-      project_type: parsed.data.projectType,
-      description: parsed.data.description,
-      status: "planning",
-    })
-    .select("id")
-    .single();
-
-  if (projectError || !project) {
-    return { message: projectError?.message ?? "Could not create project." };
-  }
-
-  const { error: propertyError } = await supabase.from("properties").insert({
-    project_id: project.id,
-    address_line_1: titleCase(parsed.data.addressLine1),
-    city: titleCase(parsed.data.city),
-    state: parsed.data.state.trim().toUpperCase(),
-    postal_code: parsed.data.postalCode.trim(),
-    county: parsed.data.county?.trim() || null,
-    address_line_2: null,
-    latitude: parsed.data.latitude,
-    longitude: parsed.data.longitude,
-    parcel_number: null,
-    google_place_id: parsed.data.googlePlaceId?.trim() || null,
-    formatted_address: parsed.data.formattedAddress?.trim() || null,
-  });
-
-  if (propertyError) {
-    return { message: propertyError.message };
-  }
-
-  const { error: tasksError } = await supabase.from("project_tasks").insert(
-    starterTasks.map((task) => ({
-      project_id: project.id,
-      parent_task_id: null,
-      category: task.category,
-      title: task.title,
-      description: task.description,
-      instructions: task.instructions,
-      status: "not_started",
-      priority: task.priority,
-      due_date: null,
-      regulation_source_id: null,
-      local_authority: task.localAuthority ?? null,
-      documents_needed: task.documentsNeeded ?? [],
-      fee_estimate: null,
-      processing_time: task.processingTime ?? null,
-      dependency_notes: task.dependencyNotes ?? null,
-      assigned_to: null,
-      notes: null,
-      source_url: null,
-      sort_order: task.sortOrder,
-    })),
-  );
-
-  if (tasksError) {
-    return { message: tasksError.message };
-  }
-
   revalidatePath("/dashboard");
-  redirect(`/projects/${project.id}`);
+  redirect(`/projects/${id}`);
 }
 
 async function getOwnedProject(projectId: string) {
@@ -190,77 +147,6 @@ async function getOwnedProject(projectId: string) {
   return { supabase, project, user };
 }
 
-export async function updateTaskStatusAction(formData: FormData) {
-  const user = await requireUser();
-  const supabase = await requireSupabase();
-  const taskId = String(formData.get("taskId") ?? "");
-  const projectId = String(formData.get("projectId") ?? "");
-  const status = String(formData.get("status") ?? "");
-
-  if (!supabase || !taskId || !projectId) {
-    return;
-  }
-
-  const allowed = Object.keys(taskStatusLabels);
-
-  if (!allowed.includes(status)) {
-    return;
-  }
-
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("id", projectId)
-    .eq("user_id", user.id)
-    .single();
-
-  if (!project) {
-    return;
-  }
-
-  await supabase
-    .from("project_tasks")
-    .update({ status: status as TaskStatus })
-    .eq("id", taskId)
-    .eq("project_id", projectId);
-
-  revalidatePath(`/projects/${projectId}/tasks`);
-  revalidatePath(`/projects/${projectId}`);
-}
-
-export async function updateTaskDetailsAction(formData: FormData) {
-  const projectId = String(formData.get("projectId") ?? "");
-  const taskId = String(formData.get("taskId") ?? "");
-  const assignedTo = String(formData.get("assignedTo") ?? "").trim();
-  const dueDate = String(formData.get("dueDate") ?? "").trim();
-  const notes = String(formData.get("notes") ?? "").trim();
-  const sourceUrl = String(formData.get("sourceUrl") ?? "").trim();
-
-  if (!projectId || !taskId) {
-    return;
-  }
-
-  const { supabase, project } = await getOwnedProject(projectId);
-
-  if (!supabase || !project) {
-    return;
-  }
-
-  await supabase
-    .from("project_tasks")
-    .update({
-      assigned_to: assignedTo || null,
-      due_date: dueDate || null,
-      notes: notes || null,
-      source_url: sourceUrl || null,
-    })
-    .eq("id", taskId)
-    .eq("project_id", projectId);
-
-  revalidatePath(`/projects/${projectId}/tasks`);
-  revalidatePath(`/projects/${projectId}`);
-}
-
 export async function createCostAction(formData: FormData) {
   const parsed = costSchema.safeParse({
     projectId: formData.get("projectId"),
@@ -275,16 +161,16 @@ export async function createCostAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
   const { supabase, project } = await getOwnedProject(parsed.data.projectId);
 
   if (!supabase || !project) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
-  await supabase.from("project_costs").insert({
+  const { error: mutationError } = await supabase.from("project_costs").insert({
     project_id: parsed.data.projectId,
     category: parsed.data.category,
     item_name: parsed.data.itemName,
@@ -296,6 +182,7 @@ export async function createCostAction(formData: FormData) {
     notes: parsed.data.notes?.trim() || null,
   });
 
+  if (mutationError) throw new Error("Your changes couldn’t be saved.");
   revalidatePath(`/projects/${parsed.data.projectId}/costs`);
   revalidatePath(`/projects/${parsed.data.projectId}`);
 }
@@ -305,21 +192,22 @@ export async function deleteCostAction(formData: FormData) {
   const costId = String(formData.get("costId") ?? "");
 
   if (!projectId || !costId) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
   const { supabase, project } = await getOwnedProject(projectId);
 
   if (!supabase || !project) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
-  await supabase
+  const { error: mutationError } = await supabase
     .from("project_costs")
     .delete()
     .eq("id", costId)
     .eq("project_id", projectId);
 
+  if (mutationError) throw new Error("Your changes couldn’t be saved.");
   revalidatePath(`/projects/${projectId}/costs`);
   revalidatePath(`/projects/${projectId}`);
 }
@@ -334,13 +222,13 @@ export async function createMilestoneAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
   const { supabase, project } = await getOwnedProject(parsed.data.projectId);
 
   if (!supabase || !project) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
   const { count } = await supabase
@@ -348,17 +236,20 @@ export async function createMilestoneAction(formData: FormData) {
     .select("id", { count: "exact", head: true })
     .eq("project_id", parsed.data.projectId);
 
-  await supabase.from("project_milestones").insert({
-    project_id: parsed.data.projectId,
-    phase: parsed.data.phase,
-    title: parsed.data.title,
-    status: "not_started",
-    due_date: parsed.data.dueDate || null,
-    completed_at: null,
-    sort_order: (count ?? 0) * 10 + 10,
-    notes: parsed.data.notes?.trim() || null,
-  });
+  const { error: mutationError } = await supabase
+    .from("project_milestones")
+    .insert({
+      project_id: parsed.data.projectId,
+      phase: parsed.data.phase,
+      title: parsed.data.title,
+      status: "not_started",
+      due_date: parsed.data.dueDate || null,
+      completed_at: null,
+      sort_order: (count ?? 0) * 10 + 10,
+      notes: parsed.data.notes?.trim() || null,
+    });
 
+  if (mutationError) throw new Error("Your changes couldn’t be saved.");
   revalidatePath(`/projects/${parsed.data.projectId}/timeline`);
   revalidatePath(`/projects/${parsed.data.projectId}`);
 }
@@ -370,16 +261,16 @@ export async function updateMilestoneStatusAction(formData: FormData) {
   const allowed = ["not_started", "in_progress", "blocked", "complete"];
 
   if (!projectId || !milestoneId || !allowed.includes(status)) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
   const { supabase, project } = await getOwnedProject(projectId);
 
   if (!supabase || !project) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
-  await supabase
+  const { error: mutationError } = await supabase
     .from("project_milestones")
     .update({
       status: status as MilestoneStatus,
@@ -389,6 +280,7 @@ export async function updateMilestoneStatusAction(formData: FormData) {
     .eq("id", milestoneId)
     .eq("project_id", projectId);
 
+  if (mutationError) throw new Error("Your changes couldn’t be saved.");
   revalidatePath(`/projects/${projectId}/timeline`);
   revalidatePath(`/projects/${projectId}`);
 }
@@ -398,21 +290,151 @@ export async function deleteMilestoneAction(formData: FormData) {
   const milestoneId = String(formData.get("milestoneId") ?? "");
 
   if (!projectId || !milestoneId) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
   const { supabase, project } = await getOwnedProject(projectId);
 
   if (!supabase || !project) {
-    return;
+    throw new Error("Review your changes and try again.");
   }
 
-  await supabase
+  const { error: mutationError } = await supabase
     .from("project_milestones")
     .delete()
     .eq("id", milestoneId)
     .eq("project_id", projectId);
 
+  if (mutationError) throw new Error("Your changes couldn’t be saved.");
   revalidatePath(`/projects/${projectId}/timeline`);
   revalidatePath(`/projects/${projectId}`);
+}
+
+export type TaskFormState = { error?: string; success?: boolean };
+export async function saveTaskAction(
+  _state: TaskFormState,
+  formData: FormData,
+): Promise<TaskFormState> {
+  const schema = z.object({
+    projectId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    status: z.enum(
+      Object.keys(taskStatusLabels) as [TaskStatus, ...TaskStatus[]],
+    ),
+    priority: z.enum(["low", "medium", "high"]),
+    dueDate: z.union([z.literal(""), z.iso.date()]),
+    notes: z.string().max(10000),
+    sourceUrl: z.union([
+      z.literal(""),
+      z.url().refine((v) => /^https?:\/\//.test(v)),
+    ]),
+    dependsOn: z.union([z.literal(""), z.string().uuid()]),
+  });
+  const parsed = schema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success)
+    return { error: "Review the date, dependency, and source URL (https://)." };
+  const { supabase, project } = await getOwnedProject(parsed.data.projectId);
+  if (!supabase || !project) return { error: "This project is unavailable." };
+  const v = parsed.data;
+  const { data: tasks, error: readError } = await supabase
+    .from("project_tasks")
+    .select("id,depends_on_id")
+    .eq("project_id", project.id);
+  if (readError || !tasks?.some((t) => t.id === v.taskId))
+    return { error: "This task couldn’t be found." };
+  let next = v.dependsOn;
+  const visited = new Set([v.taskId]);
+  while (next) {
+    if (visited.has(next))
+      return { error: "That dependency would create a cycle." };
+    visited.add(next);
+    const predecessor = tasks.find((t) => t.id === next);
+    if (!predecessor)
+      return { error: "Choose a dependency from this project." };
+    next = predecessor.depends_on_id ?? "";
+  }
+  const { error } = await supabase
+    .from("project_tasks")
+    .update({
+      status: v.status,
+      priority: v.priority,
+      due_date: v.dueDate || null,
+      notes: v.notes || null,
+      source_url: v.sourceUrl || null,
+      depends_on_id: v.dependsOn || null,
+    })
+    .eq("id", v.taskId)
+    .eq("project_id", project.id);
+  if (error) return { error: "Your task couldn’t be saved. Please try again." };
+  revalidatePath(`/projects/${project.id}`, "layout");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function toggleTaskAction(
+  projectId: string,
+  taskId: string,
+  complete: boolean,
+): Promise<{ error?: string }> {
+  if (
+    !z.string().uuid().safeParse(projectId).success ||
+    !z.string().uuid().safeParse(taskId).success
+  )
+    return { error: "This task is unavailable." };
+  const { supabase, project } = await getOwnedProject(projectId);
+  if (!supabase || !project) return { error: "This project is unavailable." };
+  const { data, error } = await supabase
+    .from("project_tasks")
+    .update({ status: complete ? "complete" : "not_started" })
+    .eq("id", taskId)
+    .eq("project_id", projectId)
+    .select("id");
+  if (error || !data?.length)
+    return { error: "We couldn’t update this task. Try again." };
+  revalidatePath(`/projects/${projectId}`, "layout");
+  return {};
+}
+export async function addTaskAction(
+  _state: TaskFormState,
+  form: FormData,
+): Promise<TaskFormState> {
+  const parsed = z
+    .object({
+      projectId: z.string().uuid(),
+      title: z.string().trim().min(3).max(250),
+      category: z.string().min(2).max(80),
+      description: z.string().max(5000),
+      instructions: z.string().max(10000),
+    })
+    .safeParse(Object.fromEntries(form));
+  if (!parsed.success)
+    return { error: "Give this task a title of at least three characters." };
+  const v = parsed.data;
+  const { supabase, project } = await getOwnedProject(v.projectId);
+  if (!supabase || !project) return { error: "This project is unavailable." };
+  const { error } = await supabase.from("project_tasks").insert({
+    project_id: project.id,
+    title: v.title,
+    category: v.category,
+    description: v.description || null,
+    instructions: v.instructions || null,
+    status: "not_started",
+    priority: "medium",
+    sort_order: Date.now() % 100000000,
+    parent_task_id: null,
+    depends_on_id: null,
+    due_date: null,
+    regulation_source_id: null,
+    local_authority: null,
+    documents_needed: [],
+    fee_estimate: null,
+    processing_time: null,
+    dependency_notes: null,
+    assigned_to: null,
+    notes: null,
+    source_url: null,
+  });
+  if (error) return { error: "We couldn’t add the task. Try again." };
+  revalidatePath(`/projects/${project.id}`, "layout");
+  return { success: true };
 }

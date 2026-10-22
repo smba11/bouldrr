@@ -1,7 +1,11 @@
 import { CopilotPanel } from "@/components/projects/copilot-panel";
+import { PageHeader } from "@/components/workspace/primitives";
 import { requireUser } from "@/lib/auth";
-import { getProjectWorkspace } from "@/lib/data/projects";
-
+import { isOpenAIEnabled } from "@/lib/env";
+import {
+  getProjectWorkspace,
+  getProjectRegulations,
+} from "@/lib/data/projects";
 export default async function CopilotPage({
   params,
 }: {
@@ -9,20 +13,32 @@ export default async function CopilotPage({
 }) {
   const { projectId } = await params;
   const user = await requireUser();
-  const project = await getProjectWorkspace(projectId, user.id);
-
+  const [p, { sources }] = await Promise.all([
+    getProjectWorkspace(projectId, user.id, "copilot"),
+    getProjectRegulations(projectId, user.id),
+  ]);
+  const property = p.properties[0];
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Copilot</h1>
-        <p className="mt-2 text-muted-foreground">
-          Ask questions with project context. AI stays disabled until
-          OPENAI_API_KEY is added server-side.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow="A project-aware perspective"
+        title="Bouldrr Copilot"
+        description="Your property, your goal, and the context you’ve collected—ready for the next question."
+      />
       <CopilotPanel
-        initialMessages={project.project_messages}
-        projectId={project.id}
+        projectId={projectId}
+        initialMessages={p.project_messages}
+        enabled={isOpenAIEnabled()}
+        projectName={p.name}
+        context={{
+          tasks: p.project_tasks.length,
+          documents: p.documents.length,
+          sources: sources.length,
+          jurisdiction:
+            [property?.city, property?.county, property?.state]
+              .filter(Boolean)
+              .join(", ") || "Not yet available",
+        }}
       />
     </div>
   );

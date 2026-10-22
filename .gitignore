@@ -34,7 +34,6 @@ codex-logs/
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
-!.env.production
 
 # vercel
 .vercel
@@ -42,3 +41,8 @@ codex-logs/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+codex-audit.json
+
+.codex-test*
+
+/supabase/.temp/

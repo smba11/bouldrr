@@ -1,32 +1,29 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Geist } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
+const geist = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap",
 });
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "Bouldrr",
+  title: {
+    default: "Bouldrr — Know what to build. Know what’s next.",
+    template: "%s · Bouldrr",
+  },
   description:
-    "A real-estate development assistant for property research, project tasks, documents, and copilot guidance.",
+    "Turn a property, local rules, and your development goal into a clear plan. A map-first workspace for real-estate development.",
+  icons: { icon: "/icon.svg", apple: "/apple-icon.png" },
 };
-
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="flex min-h-full flex-col">
-        <TooltipProvider>{children}</TooltipProvider>
+    <html lang="en" className={geist.variable} data-scroll-behavior="smooth">
+      <body>
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
+        {children}
       </body>
     </html>
   );

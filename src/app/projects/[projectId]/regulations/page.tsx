@@ -1,11 +1,14 @@
-import { ExternalLink, FileSearch, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { getProjectWorkspace, getRegulationExample } from "@/lib/data/projects";
+import { getProjectShell, getProjectRegulations } from "@/lib/data/projects";
+import {
+  PageHeader,
+  EmptyState,
+  InformationPanel,
+  SourceBadge,
+} from "@/components/workspace/primitives";
 import { formatDate } from "@/lib/format";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
 export default async function RegulationsPage({
   params,
 }: {
@@ -13,144 +16,149 @@ export default async function RegulationsPage({
 }) {
   const { projectId } = await params;
   const user = await requireUser();
-  const project = await getProjectWorkspace(projectId, user.id);
-  const { regulations, sources } = await getRegulationExample();
-  const property = project.properties[0];
-
+  const [project, { regulations, sources }] = await Promise.all([
+    getProjectShell(projectId, user.id),
+    getProjectRegulations(projectId, user.id),
+  ]);
+  const p = project.properties[0];
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Regulations</h1>
-        <p className="mt-2 max-w-3xl text-muted-foreground">
-          Official sources stay separate from Bouldrr explanations so users can
-          see where every regulatory conclusion came from.
-        </p>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Local rules, with a paper trail"
+        title="Zoning & regulations"
+        description="Official sources and plain-language explanations stay distinct. A summary is never presented as law."
+      />
+      <div className="flex flex-wrap justify-between gap-4 rounded-xl border bg-white p-5">
+        <div>
+          <p className="eyebrow">Address context</p>
+          <p className="mt-2 text-sm font-medium">
+            {[p?.city, p?.county, p?.state].filter(Boolean).join(" · ") ||
+              "Not yet available"}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Regulatory authority has not been confirmed from the address alone.
+          </p>
+        </div>
+        <SourceBadge type="user" />
       </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="size-4 text-emerald-700" />
-              Jurisdiction
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm leading-6 text-muted-foreground">
-            {property
-              ? `${property.city}, ${property.state}${property.county ? `, ${property.county} County` : ""}`
-              : "No property has been attached."}
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Official Sources</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {sources.length} source record{sources.length === 1 ? "" : "s"}
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Extracted Rules</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {regulations.length} rule summary
-            {regulations.length === 1 ? "" : " summaries"}
-          </CardContent>
-        </Card>
-      </div>
-
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Rule Register</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {regulations.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                No regulation summaries exist yet. In v0.3 this page becomes
-                the local zoning and permit intelligence engine.
-              </div>
-            ) : (
-              regulations.map((rule) => (
-                <article className="rounded-lg border p-4" key={rule.id}>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <Badge variant="secondary">{rule.category}</Badge>
-                      <h2 className="mt-2 text-lg font-medium">{rule.title}</h2>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Updated {formatDate(rule.updated_at.slice(0, 10))}
-                    </p>
-                  </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-lg bg-muted/40 p-3">
-                      <p className="text-sm font-medium">Official Rule</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {rule.raw_reference ?? "Source record reference needed."}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-sky-50 p-3 text-sky-950">
-                      <p className="text-sm font-medium">Bouldrr Explanation</p>
-                      <p className="mt-1 text-sm">{rule.summary}</p>
-                    </div>
-                  </div>
-                </article>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="h-fit shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileSearch className="size-5" />
-              Source Library
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {sources.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Attach official planning, zoning, building, inspection, and fee
-                sources before relying on local answers.
-              </p>
-            ) : (
-              sources.map((source) => (
-                <div className="rounded-lg border p-3" key={source.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{source.title}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {source.publisher ?? source.source_type}
-                      </p>
-                    </div>
-                    <Button asChild size="icon-sm" variant="outline">
-                      <a href={source.url} rel="noreferrer" target="_blank">
-                        <ExternalLink className="size-4" />
-                        <span className="sr-only">Open source</span>
-                      </a>
-                    </Button>
-                  </div>
-                  <dl className="mt-3 grid gap-2 text-xs text-muted-foreground">
-                    <div>
-                      <dt className="font-medium text-foreground">Effective</dt>
-                      <dd>{formatDate(source.effective_date)}</dd>
-                    </div>
-                    <div>
-                      <dt className="font-medium text-foreground">Last verified</dt>
-                      <dd>
-                        {source.last_checked_at
-                          ? formatDate(source.last_checked_at.slice(0, 10))
-                          : "Not verified"}
-                      </dd>
-                    </div>
-                  </dl>
+      {regulations.length ? (
+        <div className="space-y-5">
+          {regulations.map((rule) => {
+            const source = sources.find((s) => s.id === rule.source_id);
+            return (
+              <article key={rule.id} className="rounded-xl border bg-white p-6">
+                <div className="flex flex-wrap justify-between gap-3">
+                  <h2 className="text-lg font-medium">{rule.title}</h2>
+                  <span className="source-badge">
+                    {source?.verification_status === "verified"
+                      ? "Verified"
+                      : source &&
+                          source.verification_status !== "missing_source"
+                        ? "Needs Review"
+                        : "Missing Source"}
+                  </span>
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </section>
+                <div className="mt-6 grid gap-6 md:grid-cols-3">
+                  <section>
+                    <p className="eyebrow">Official source</p>
+                    {source ? (
+                      <>
+                        <a
+                          className="mt-3 block text-sm font-medium text-primary hover:underline"
+                          href={
+                            /^https?:\/\//.test(source.url)
+                              ? source.url
+                              : undefined
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {source.title}{" "}
+                          <ArrowUpRight className="inline size-3.5" />
+                        </a>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {source.publisher || "Agency not yet available"}
+                        </p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Effective: {formatDate(source.effective_date)}
+                        </p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Last checked:{" "}
+                          {source.last_checked_at
+                            ? formatDate(source.last_checked_at.slice(0, 10))
+                            : "Not yet checked"}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        No official source attached.
+                      </p>
+                    )}
+                    <p className="mt-3 text-xs leading-6 text-muted-foreground">
+                      {rule.raw_reference ||
+                        "Original provision not yet available."}
+                    </p>
+                  </section>
+                  <section className="rounded-xl bg-muted/60 p-4">
+                    <p className="eyebrow">Bouldrr summary</p>
+                    <p className="mt-3 text-sm leading-7">{rule.summary}</p>
+                    <p className="mt-3">
+                      <SourceBadge type="derived" />
+                    </p>
+                  </section>
+                  <section>
+                    <p className="eyebrow">Project impact</p>
+                    <p className="mt-3 text-xs leading-6 text-muted-foreground">
+                      Applicability to this {project.project_type.toLowerCase()}{" "}
+                      project has not been reviewed. Confirm the provision,
+                      effective date, and responsible authority before using it
+                      in your plan.
+                    </p>
+                  </section>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState
+          title="Local rules need a local source."
+          description="No jurisdiction-matched regulations are connected to this property yet. Confirm the planning authority, then save zoning maps, code excerpts, and permit checklists in Documents."
+          action={
+            <Link
+              className="button-primary"
+              href={`/projects/${projectId}/documents`}
+            >
+              Add source documents <ArrowUpRight className="size-3.5" />
+            </Link>
+          }
+        />
+      )}
+      <InformationPanel title="A source-backed research path">
+        <ol className="grid gap-5 text-xs leading-6 text-muted-foreground sm:grid-cols-3">
+          <li>
+            <span className="mb-2 block font-medium text-foreground">
+              01 · Confirm the authority
+            </span>
+            City limits and county addresses don’t always establish who reviews
+            a parcel.
+          </li>
+          <li>
+            <span className="mb-2 block font-medium text-foreground">
+              02 · Find the original rule
+            </span>
+            Collect the official district map, applicable code sections, agency,
+            and dates.
+          </li>
+          <li>
+            <span className="mb-2 block font-medium text-foreground">
+              03 · Review your specific goal
+            </span>
+            Check use, density, height, parking, setbacks, and review
+            requirements with the authority.
+          </li>
+        </ol>
+      </InformationPanel>
     </div>
   );
 }

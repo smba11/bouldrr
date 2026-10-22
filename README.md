@@ -1,121 +1,107 @@
 # Bouldrr
 
-Bouldrr is a free real-estate development assistant for developers, flippers,
-contractors, homeowners, and first-time builders. This repository contains the
-MVP foundation: authentication, project creation, property workspace, task
-planning, document storage, sourced regulation architecture, and a project
-copilot abstraction.
+Bouldrr is a property-aware workspace for real-estate development: locate a property, define a goal, sketch a conceptual site plan, and work through a source-conscious project checklist.
 
-## Current MVP Features
+## Bouldrr v2
 
-- Supabase Auth sign up, sign in, sign out, and protected app routes.
-- Project dashboard and multi-step project creation flow.
-- Google Maps address location during project creation when
-  `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is configured.
-- Property workspace with overview, property details, task plan, documents, and copilot.
-- Expanded workspace sections for feasibility, regulations, costs, and timeline.
-- Seeded starter task structure across due diligence, zoning, design, financing, permits, construction, inspections, and completion.
-- Rich task records with local authority, source URL, dependencies, assignment, notes, deadlines, and detailed statuses.
-- Supabase Storage upload/delete flow for project documents.
-- Database design that separates official sources, extracted regulations, and Bouldrr summaries.
-- Copilot UI and server-side provider layer. The app runs without `OPENAI_API_KEY` and returns a graceful disabled message until one is added.
-- User profile settings with preferred language prepared for English and Spanish.
+- Supabase SSR signup, sign-in, sign-out, persistent sessions, profiles, and protected routes.
+- Multiple private projects, created atomically with their property and starter tasks.
+- Google Places (New) autocomplete, geocoding, saved address components and coordinates, and lazy-loaded roadmap/satellite/terrain maps when configured.
+- Conceptual site design: polygon, rectangle, line, marker, semantic types, selection, movement, resizing, naming, deletion, undo, and persistent GeoJSON.
+- A local sketch canvas when Maps is unavailable. Unlocated sketches explicitly use local meters rather than geographic coordinates.
+- A deterministic structure/parking configurator; no AI credential is required.
+- Task dependencies, seven statuses, priority, deadlines, instructions, documents needed, sources, notes, and progress.
+- Private document uploads with real progress, search, image/PDF previews, signed download links, and deletion.
+- Project activity, milestone and cost tracking, information gaps, and jurisdiction context.
+- Ctrl/Cmd+K search across projects, properties, tasks, documents, and navigation.
+- Original SVG identity, responsive drawer navigation, keyboard controls, visible focus, and reduced-motion support.
 
-## Architecture
-
-- `src/app`: Next.js App Router routes.
-- `src/components`: reusable UI and feature components.
-- `src/lib/supabase`: Supabase SSR browser/server/proxy clients.
-- `src/lib/actions`: server actions for auth, projects, documents, and settings.
-- `src/lib/data`: server-side data access helpers.
-- `src/lib/ai`: provider abstraction for the project copilot.
-- `supabase/migrations`: schema, RLS policies, storage bucket policy, and example source/regulation seed.
-
-## Environment Variables
-
-Create `.env.local` from `.env.example`.
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-5-mini
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
-NEXT_PUBLIC_MAPBOX_TOKEN=
-```
-
-Required for the app data path:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-
-Optional:
-
-- `OPENAI_API_KEY`: enables live copilot responses.
-- `OPENAI_MODEL`: defaults to `gpt-5-mini`.
-- Map keys are reserved for later Google Maps or Mapbox integration.
-- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: enables address geocoding and live property maps. Enable the Maps JavaScript API for the key.
-
-## Supabase Setup
-
-1. Create or open the Supabase project used by Vercel.
-2. Apply migrations:
-
-```bash
-supabase db push
-```
-
-3. Confirm the `project-documents` storage bucket exists. The migration creates it as a private bucket.
-4. Confirm Auth email settings and redirect URLs include your local and Vercel URLs, including `/auth/confirm`.
+Regulatory coverage is incomplete by design: missing data is labelled rather than invented. User-drawn boundaries, setbacks and buildable areas are concepts, not official findings or architectural plans. Source geometry can be displayed read-only when supplied through a trusted ingestion process.
 
 ## Development
 
-```bash
+Use Node.js 24 and npm.
+
+```sh
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-Quality checks:
+PowerShell users can use `Copy-Item .env.example .env.local`. Environment files are ignored; never commit credentials.
 
-```bash
+Required:
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+```
+
+For live property search/maps:
+
+```dotenv
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
+```
+
+Enable **Maps JavaScript API**, **Places API (New)**, and **Geocoding API** in the Google Cloud project. Apply HTTP referrer restrictions for the local and production origins and restrict the key to the required APIs. Bouldrr requests Maps only on property-related surfaces. If Maps is unavailable, manual address entry, coordinates, projects, tasks, documents, and concept sketches remain usable.
+
+Optional existing Copilot integration:
+
+```dotenv
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5-mini
+```
+
+Without a server-side key, Copilot shows its disconnected state and does not create fake responses. Do not put private provider credentials in a `NEXT_PUBLIC_` variable.
+
+## Database and authentication
+
+Migrations are in `supabase/migrations`. Use the Supabase CLI migration workflow for a new environment:
+
+```sh
+supabase db push
+```
+
+The original two migrations are the existing MVP baseline. The three v2 migrations were applied to the configured project, with their local versions matching the remote history. Some baseline environments originally used manually applied SQL; reconcile that baseline history before pushing the full directory to an existing database.
+
+V2 adds `site_designs`, `map_features`, and `project_activity`; it reuses existing projects, properties, jurisdictions, regulations, tasks, documents, costs and milestones. RLS restricts project data and Storage to the owner. Workspace creation and design saves use invoker-rights RPC transactions. Design revisions detect concurrent saves. Database constraints reject malformed geometry and cyclic/cross-project task dependencies.
+
+The `project-documents` bucket must be private. New files use `user_id/project_id/random_id-filename`. Signed preview URLs last two minutes. Uploads go directly to signed Storage endpoints, avoiding the Server Action body-size limit.
+
+Configure Supabase Auth Site URL and redirect allowlist for the production origin, local development, and `/auth/confirm`. Both PKCE code exchange and token-hash confirmation are supported. Confirmation-required signups show an email instruction instead of redirecting to a missing session. The currently connected project auto-confirms email signup; email delivery in a confirmation-required environment must be verified separately.
+
+## Checks
+
+```sh
 npm run lint
 npm run typecheck
 npm run build
+npm audit --omit=dev
 ```
 
-## First Flow To Verify
+The opt-in live integration harness writes disposable QA accounts and project data to the configured Supabase project. Run only against an environment where those test records are appropriate:
 
-After Vercel environment variables are configured and pulled locally:
-
-```bash
-vercel env pull .env.local --yes
-npm run dev
+```sh
+node --env-file=.env.local scripts/check-connection.mjs
+node --env-file=.env.local scripts/verify-workflow.mjs
 ```
 
-Verify:
+Credentials and test IDs stay in ignored `.codex-test*` files. Results are written to ignored `codex-logs/`. The harness tests actual signup/profile access, atomic creation/rollback, persistence, dependencies, geometry, conflicts, cross-account RLS, Storage uploads/downloads/deletion, activity, and preserved costs/milestones. Remove disposable QA accounts and their files after verification through your administrative workflow.
 
-1. Sign up or sign in with Supabase Auth.
-2. Create a project.
-3. Enter an address and click **Locate** to resolve it with Google Maps.
-4. Save the project to Supabase.
-5. Open the project workspace.
-6. Review seeded tasks.
-7. Upload and delete a document.
+## Deployment
 
-If the Google Maps key is absent, Bouldrr keeps manual address entry working and
-shows a local configuration message instead of failing the project form.
+This repository's `main` branch is connected to the Vercel **bouldrr** project. The production domain is [bouldrr-theta.vercel.app](https://bouldrr-theta.vercel.app). Apply compatible migrations before releasing code that uses them, run the checks, push the tested commit to `main`, and verify that exact commit reaches READY in Vercel.
 
-## Deployment Notes
+Set environment variables in Vercel; public variables used in browser bundles require a rebuild when changed. Do not commit `.env.local` or `.env.production`.
 
-The repository is ready for Vercel. Configure the Supabase public environment
-variables in Vercel. Do not expose Supabase service role keys or `OPENAI_API_KEY`
-to the browser. `OPENAI_API_KEY` should remain a server-only environment variable.
+## Explicit limits
 
-## What To Build Next
+- Parcel, zoning, flood, wetlands, utilities, nearby permits, and development-activity feeds are not automatically connected.
+- Address city/county/state is preliminary context, not confirmation of regulatory authority.
+- No surveyed boundary, required setback, buildable envelope, permit result, or feasibility determination is manufactured.
+- Concepts are approximate; source geometry currently supports points, lines, and single-ring polygons. Complex/multipart geometry needs an ingestion/rendering extension.
+- Copilot currently uses document metadata, not extracted file contents. Live AI responses require separate configuration.
+- Language preference is saved; the interface currently uses English.
+- Drawing is desktop-first; the keyboard point-entry and object controls remain available on mobile.
 
-- Real jurisdiction matching from geocoding plus official source discovery.
-- Admin/source ingestion flow for local planning, zoning, building, and permit sources.
-- Better document previews and signed download links.
-- Task notes, attachments, and jurisdiction-specific task generation.
-- Live map integration with Google Maps or Mapbox.
-- Production observability and audit logging around AI answers and source extraction.
+The next major version should connect one jurisdiction end-to-end with authoritative parcel geometry, dated local sources, constraint layers, and a validated permit path before expanding geographic coverage.

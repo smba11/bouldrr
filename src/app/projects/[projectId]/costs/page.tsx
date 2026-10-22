@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/workspace/action-form";
 import { Plus, Trash2, WalletCards } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { createCostAction, deleteCostAction } from "@/lib/actions/projects";
@@ -25,7 +26,11 @@ export default async function CostsPage({
 }) {
   const { projectId } = await params;
   const user = await requireUser();
-  const project = await getProjectWorkspace(projectId, user.id);
+  const project = await getProjectWorkspace(
+    projectId,
+    user.id,
+    "project_costs",
+  );
   const totals = project.project_costs.reduce(
     (accumulator, cost) => {
       accumulator.estimated += cost.estimated_amount;
@@ -111,20 +116,34 @@ export default async function CostsPage({
                         </div>
                       </TableCell>
                       <TableCell>{cost.category}</TableCell>
-                      <TableCell>{formatCurrency(cost.estimated_amount)}</TableCell>
-                      <TableCell>{formatCurrency(cost.quoted_amount)}</TableCell>
-                      <TableCell>{formatCurrency(cost.committed_amount)}</TableCell>
+                      <TableCell>
+                        {formatCurrency(cost.estimated_amount)}
+                      </TableCell>
+                      <TableCell>
+                        {formatCurrency(cost.quoted_amount)}
+                      </TableCell>
+                      <TableCell>
+                        {formatCurrency(cost.committed_amount)}
+                      </TableCell>
                       <TableCell>{formatCurrency(cost.paid_amount)}</TableCell>
                       <TableCell>{formatCurrency(cost.final_amount)}</TableCell>
                       <TableCell>
-                        <form action={deleteCostAction}>
-                          <input name="projectId" type="hidden" value={project.id} />
+                        <ActionForm action={deleteCostAction}>
+                          <input
+                            name="projectId"
+                            type="hidden"
+                            value={project.id}
+                          />
                           <input name="costId" type="hidden" value={cost.id} />
-                          <Button size="icon-sm" type="submit" variant="destructive">
+                          <Button
+                            size="icon-sm"
+                            type="submit"
+                            variant="destructive"
+                          >
                             <Trash2 className="size-4" />
                             <span className="sr-only">Delete cost</span>
                           </Button>
-                        </form>
+                        </ActionForm>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -142,7 +161,7 @@ export default async function CostsPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={createCostAction} className="space-y-4">
+            <ActionForm action={createCostAction} className="space-y-4">
               <input name="projectId" type="hidden" value={project.id} />
               <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
@@ -172,7 +191,13 @@ export default async function CostsPage({
                 ].map(([name, label]) => (
                   <div className="space-y-2" key={name}>
                     <Label htmlFor={name}>{label}</Label>
-                    <Input id={name} min="0" name={name} step="1" type="number" />
+                    <Input
+                      id={name}
+                      min="0"
+                      name={name}
+                      step="1"
+                      type="number"
+                    />
                   </div>
                 ))}
               </div>
@@ -183,7 +208,7 @@ export default async function CostsPage({
               <Button className="w-full" type="submit">
                 Add cost
               </Button>
-            </form>
+            </ActionForm>
           </CardContent>
         </Card>
       </div>

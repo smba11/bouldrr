@@ -1,97 +1,94 @@
 import Link from "next/link";
-import { Plus, Settings } from "lucide-react";
-import { signOutAction } from "@/lib/actions/auth";
+import { ArrowUpRight, Plus, MapPin } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getDashboardProjects } from "@/lib/data/projects";
-import { Button } from "@/components/ui/button";
+import { WorkspaceShell } from "@/components/workspace/shell";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
+  PageHeader,
+  EmptyState,
+  StatusBadge,
+} from "@/components/workspace/primitives";
 export default async function DashboardPage() {
   const user = await requireUser();
   const projects = await getDashboardProjects(user.id);
-
   return (
-    <main className="min-h-screen bg-muted/20">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link className="font-semibold" href="/dashboard">
-            Bouldrr
+    <WorkspaceShell projects={projects}>
+      <PageHeader
+        eyebrow="Your workspace"
+        title="Good things start here."
+        description="A home for your properties, plans, and next possibilities."
+        action={
+          <Link className="button-primary" href="/projects/new">
+            <Plus className="size-4" />
+            New project
           </Link>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="ghost">
-              <Link href="/settings">
-                <Settings className="size-4" />
-                Settings
-              </Link>
-            </Button>
-            <form action={signOutAction}>
-              <Button type="submit" variant="outline">
-                Sign out
-              </Button>
-            </form>
-          </div>
-        </div>
-      </header>
-      <section className="mx-auto max-w-6xl px-6 py-10">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
-            <p className="mt-1 text-muted-foreground">
-              Create, review, and continue real-estate development workspaces.
-            </p>
-          </div>
-          <Button asChild>
-            <Link href="/projects/new">
-              <Plus className="size-4" />
-              New project
-            </Link>
-          </Button>
-        </div>
-
-        {projects.length === 0 ? (
-          <Card className="mt-8 border-dashed shadow-sm">
-            <CardContent className="flex min-h-72 flex-col items-center justify-center gap-4 text-center">
-              <div>
-                <h2 className="text-xl font-medium">Start your first project</h2>
-                <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                  Add a property, describe the work, and Bouldrr will create a
-                  structured development task list.
-                </p>
+        }
+      />
+      <div className="mb-7 flex items-center justify-between border-b pb-4">
+        <h2 className="text-sm font-medium">
+          Your projects{" "}
+          <span className="ml-2 text-muted-foreground">{projects.length}</span>
+        </h2>
+        <p className="text-[10px] text-muted-foreground">
+          Most recently updated first
+        </p>
+      </div>
+      {projects.length ? (
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {projects.map((p) => (
+            <Link
+              href={`/projects/${p.id}`}
+              key={p.id}
+              className="property-card"
+            >
+              <div className="property-art">
+                <span className="absolute left-4 top-3 z-10">
+                  <StatusBadge status={p.status} />
+                </span>
+                <span className="absolute bottom-3 left-4 z-10 text-[9px] text-muted-foreground">
+                  PROPERTY WORKSPACE
+                </span>
               </div>
-              <Button asChild>
-                <Link href="/projects/new">Create project</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => {
-              const property = project.properties[0];
-              return (
-                <Link href={`/projects/${project.id}`} key={project.id}>
-                  <Card className="h-full transition hover:border-foreground/40 hover:shadow-sm">
-                    <CardHeader>
-                      <CardTitle className="text-base">{project.name}</CardTitle>
-                      <CardDescription>{project.project_type}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground">
-                      {property
-                        ? `${property.address_line_1}, ${property.city}, ${property.state}`
-                        : "No property attached"}
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </main>
+              <div className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-sm font-semibold leading-6">{p.name}</h3>
+                  <ArrowUpRight className="mt-1 size-4 shrink-0 text-muted-foreground" />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {p.project_type}
+                </p>
+                <div className="mt-5 flex items-center gap-2 border-t pt-4 text-xs text-muted-foreground">
+                  <MapPin className="size-3.5" />
+                  {p.properties[0]
+                    ? [p.properties[0].city, p.properties[0].state].join(", ")
+                    : "Property details needed"}
+                </div>
+              </div>
+            </Link>
+          ))}
+          <Link
+            className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
+            href="/projects/new"
+          >
+            <Plus className="size-6 stroke-[1.3]" />
+            Make room for another idea
+          </Link>
+        </div>
+      ) : (
+        <EmptyState
+          title="Your next possibility starts with a property."
+          description="Find an address, describe your goal, and create a private workspace with a practical development checklist."
+          action={
+            <Link className="button-primary" href="/projects/new">
+              Find a property <ArrowUpRight className="size-4" />
+            </Link>
+          }
+        />
+      )}
+      <p className="mt-8 max-w-lg text-xs leading-6 text-muted-foreground">
+        A clear plan starts with clear facts. Bouldrr labels what’s known, what
+        you’ve provided, and what still needs verification.
+      </p>
+    </WorkspaceShell>
   );
 }

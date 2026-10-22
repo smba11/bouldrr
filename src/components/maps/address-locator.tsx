@@ -1,15 +1,10 @@
 "use client";
-
-import { useMemo, useRef, useState } from "react";
-import { LocateFixed, MapPin } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Search, Loader2 } from "lucide-react";
 import {
-  type GoogleAddressComponent,
-  type GoogleGeocodeResult,
   loadGoogleMaps,
+  type GoogleGeocodeResult,
 } from "@/components/maps/google-maps";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-
 export type LocatedAddress = {
   addressLine1: string;
   city: string;
@@ -21,189 +16,190 @@ export type LocatedAddress = {
   postalCode: string;
   state: string;
 };
-
-type AddressLocatorProps = {
-  addressLine1: string;
-  city: string;
-  onLocate: (address: LocatedAddress) => void;
-  postalCode: string;
-  stateValue: string;
+export const blankAddress: LocatedAddress = {
+  addressLine1: "",
+  city: "",
+  county: "",
+  formattedAddress: "",
+  googlePlaceId: "",
+  latitude: "",
+  longitude: "",
+  postalCode: "",
+  state: "",
 };
-
-function findComponent(
-  components: GoogleAddressComponent[],
-  type: string,
-  field: "long_name" | "short_name" = "long_name",
-) {
-  return (
-    components.find((component) => component.types.includes(type))?.[field] ?? ""
-  );
-}
-
-function stripCountySuffix(value: string) {
-  return value.replace(/\s+County$/i, "");
-}
-
-function toLocatedAddress(result: GoogleGeocodeResult): LocatedAddress {
-  const components = result.address_components;
-  const streetNumber = findComponent(components, "street_number");
-  const route = findComponent(components, "route");
-  const addressLine1 = [streetNumber, route].filter(Boolean).join(" ");
-  const location = result.geometry.location;
-
+export function toLocatedAddress(result: GoogleGeocodeResult): LocatedAddress {
+  const c = (type: string, short = false) =>
+    result.address_components.find((c) => c.types.includes(type))?.[
+      short ? "short_name" : "long_name"
+    ] ?? "";
   return {
     addressLine1:
-      addressLine1 || result.formatted_address.split(",")[0] || "",
-    city:
-      findComponent(components, "locality") ||
-      findComponent(components, "postal_town") ||
-      findComponent(components, "sublocality") ||
-      "",
-    county: stripCountySuffix(
-      findComponent(components, "administrative_area_level_2"),
-    ),
+      [c("street_number"), c("route")].filter(Boolean).join(" ") ||
+      result.formatted_address.split(",")[0],
+    city: c("locality") || c("postal_town") || c("sublocality"),
+    county: c("administrative_area_level_2"),
+    state: c("administrative_area_level_1", true),
+    postalCode: c("postal_code"),
     formattedAddress: result.formatted_address,
     googlePlaceId: result.place_id,
-    latitude: String(location.lat()),
-    longitude: String(location.lng()),
-    postalCode: findComponent(components, "postal_code"),
-    state: findComponent(components, "administrative_area_level_1", "short_name"),
+    latitude: String(result.geometry.location.lat()),
+    longitude: String(result.geometry.location.lng()),
   };
 }
-
 export function AddressLocator({
-  addressLine1,
-  city,
   onLocate,
-  postalCode,
-  stateValue,
-}: AddressLocatorProps) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const markerRef = useRef<{
-    setPosition: (position: { lat: number; lng: number }) => void;
-  } | null>(null);
-  const mapInstanceRef = useRef<{
-    setCenter: (center: { lat: number; lng: number }) => void;
-    setZoom: (zoom: number) => void;
-  } | null>(null);
+}: {
+  onLocate: (address: LocatedAddress) => void;
+}) {
+  const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [pending, setPending] = useState(false);
-  const [locatedAddress, setLocatedAddress] = useState<LocatedAddress | null>(
-    null,
-  );
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const query = useMemo(() => {
-    return [addressLine1, city, stateValue, postalCode]
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .join(", ");
-  }, [addressLine1, city, postalCode, stateValue]);
-
-  async function locateAddress() {
-    if (!apiKey) {
-      setStatus("Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable locating.");
-      return;
+  const [placesError, setPlacesError] = useState(false);
+  const widget = useRef<HTMLDivElement>(null);
+  const latest = useRef(onLocate);
+  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  useEffect(() => {
+    latest.current = onLocate;
+  }, [onLocate]);
+  useEffect(() => {
+    if (!key) return;
+    let cancelled = false;
+    let element: google.maps.places.PlaceAutocompleteElement | undefined;
+    async function init() {
+      try {
+        const g = await loadGoogleMaps(key!);
+        const { PlaceAutocompleteElement } = (await g.maps.importLibrary(
+          "places",
+        )) as google.maps.PlacesLibrary;
+        if (cancelled || !widget.current) return;
+        element = new PlaceAutocompleteElement({});
+        element.setAttribute("aria-label", "Find a property address");
+        element.addEventListener("gmp-select", async (e) => {
+          try {
+            const place = (
+              e as google.maps.places.PlacePredictionSelectEvent
+            ).placePrediction.toPlace();
+            await place.fetchFields({
+              fields: [
+                "addressComponents",
+                "formattedAddress",
+                "location",
+                "id",
+              ],
+            });
+            if (cancelled || !place.location) return;
+            latest.current(
+              toLocatedAddress({
+                address_components: (place.addressComponents ?? []).map(
+                  (c) => ({
+                    long_name: c.longText ?? "",
+                    short_name: c.shortText ?? "",
+                    types: c.types,
+                  }),
+                ),
+                types: [],
+                formatted_address: place.formattedAddress ?? "",
+                place_id: place.id,
+                geometry: {
+                  location: place.location,
+                  location_type: google.maps.GeocoderLocationType.ROOFTOP,
+                  viewport: new google.maps.LatLngBounds(),
+                },
+              }),
+            );
+          } catch {
+            if (!cancelled)
+              setStatus(
+                "That location couldn’t be retrieved. Try a full address below.",
+              );
+          }
+        });
+        element.addEventListener("gmp-error", () => setPlacesError(true));
+        widget.current.replaceChildren(element);
+      } catch {
+        if (!cancelled) setPlacesError(true);
+      }
     }
-
-    if (!query) {
-      setStatus("Enter an address before locating the property.");
-      return;
-    }
-
+    void init();
+    return () => {
+      cancelled = true;
+      element?.remove();
+    };
+  }, [key]);
+  async function locate() {
+    if (!key || query.trim().length < 3) return;
     setPending(true);
     setStatus("");
-
     try {
-      const google = await loadGoogleMaps(apiKey);
-      const geocoder = new google.maps.Geocoder();
-      const result = await new Promise<GoogleGeocodeResult>((resolve, reject) => {
-        geocoder.geocode({ address: query }, (results, geocoderStatus) => {
-          if (geocoderStatus === google.maps.GeocoderStatus.OK && results?.[0]) {
-            resolve(results[0]);
-            return;
-          }
-
-          reject(new Error(`Google Maps returned ${geocoderStatus}.`));
-        });
-      });
-      const nextAddress = toLocatedAddress(result);
-      const center = {
-        lat: Number(nextAddress.latitude),
-        lng: Number(nextAddress.longitude),
-      };
-
-      if (mapRef.current) {
-        if (!mapInstanceRef.current) {
-          mapInstanceRef.current = new google.maps.Map(mapRef.current, {
-            center,
-            disableDefaultUI: true,
-            mapTypeControl: false,
-            streetViewControl: false,
-            zoom: 17,
-          });
-          markerRef.current = new google.maps.Marker({
-            map: mapInstanceRef.current,
-            position: center,
-          });
-        } else {
-          mapInstanceRef.current.setCenter(center);
-          mapInstanceRef.current.setZoom(17);
-          markerRef.current?.setPosition(center);
-        }
-      }
-
-      setLocatedAddress(nextAddress);
-      onLocate(nextAddress);
-      setStatus("Property located and coordinates added to this project.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not locate address.");
+      const g = await loadGoogleMaps(key);
+      const { Geocoder } = (await g.maps.importLibrary(
+        "geocoding",
+      )) as google.maps.GeocodingLibrary;
+      const result = await new Geocoder().geocode({ address: query });
+      if (!result.results[0]) throw Error();
+      onLocate(toLocatedAddress(result.results[0]));
+    } catch {
+      setStatus(
+        "We couldn’t locate that address. Check the street and city, or enter the property details manually.",
+      );
     } finally {
       setPending(false);
     }
   }
-
-  if (!apiKey) {
+  if (!key)
     return (
-      <Alert>
-        <MapPin className="size-4" />
-        <AlertTitle>Google Maps is not configured locally</AlertTitle>
-        <AlertDescription>
-          Manual address entry still works. Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-          in Vercel and pull it into local development to enable location lookup.
-        </AlertDescription>
-      </Alert>
+      <div className="rounded-xl border bg-white p-5">
+        <p className="text-sm font-medium">Start with the address.</p>
+        <p className="mt-2 text-xs leading-6 text-muted-foreground">
+          Address suggestions aren’t connected yet. Enter the property details
+          below; you can add coordinates now or locate it later.
+        </p>
+      </div>
     );
-  }
-
   return (
-    <div className="space-y-3 rounded-lg border p-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="font-medium">Google Maps location</p>
-          <p className="text-sm text-muted-foreground">
-            Resolve the address, coordinates, and formatted Google place record.
-          </p>
-        </div>
-        <Button disabled={pending || !query} onClick={locateAddress} type="button">
-          <LocateFixed className="size-4" />
-          {pending ? "Locating..." : "Locate"}
-        </Button>
-      </div>
-      <div
-        className="flex aspect-video items-center justify-center rounded-lg border bg-muted/40 text-sm text-muted-foreground"
-        ref={mapRef}
-      >
-        {!locatedAddress && "Map preview appears after locating the property."}
-      </div>
-      {locatedAddress && (
-        <div className="rounded-lg bg-muted/40 p-3 text-sm">
-          <p className="font-medium">{locatedAddress.formattedAddress}</p>
-          <p className="mt-1 text-muted-foreground">
-            {locatedAddress.latitude}, {locatedAddress.longitude}
-          </p>
-        </div>
+    <div className="space-y-4">
+      <div ref={widget} className="min-h-12" />
+      {placesError && (
+        <p className="text-xs text-muted-foreground">
+          Address suggestions are unavailable. You can still search the full
+          address below.
+        </p>
       )}
-      {status && <p className="text-sm text-muted-foreground">{status}</p>}
+      <div className="flex flex-wrap gap-2">
+        <label className="search-field min-w-0 flex-1">
+          <Search className="size-4 text-primary" />
+          <span className="sr-only">Full property address</span>
+          <input
+            className="min-w-0 w-full bg-transparent py-3 text-sm outline-none"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Street address, city, state"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void locate();
+              }
+            }}
+          />
+        </label>
+        <button
+          className="button-primary"
+          disabled={pending || query.trim().length < 3}
+          type="button"
+          onClick={locate}
+        >
+          {pending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            "Find property"
+          )}
+        </button>
+      </div>
+      {status && (
+        <p role="alert" className="error-message">
+          {status}
+        </p>
+      )}
     </div>
   );
 }
