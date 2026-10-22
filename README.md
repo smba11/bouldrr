@@ -94,6 +94,8 @@ This repository's `main` branch is connected to the Vercel **bouldrr** project. 
 
 Set environment variables in Vercel; public variables used in browser bundles require a rebuild when changed. Do not commit `.env.local` or `.env.production`.
 
+The production prebuild check rejects Vercel releases missing either Supabase public variable, keeping a broken authentication configuration off the live domain. Maps and Copilot have independent fallback states.
+
 ## Explicit limits
 
 - Parcel, zoning, flood, wetlands, utilities, nearby permits, and development-activity feeds are not automatically connected.

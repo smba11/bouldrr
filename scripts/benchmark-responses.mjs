@@ -17,6 +17,12 @@ const db = createServerClient(
 );
 const login = await db.auth.signInWithPassword(account);
 if (login.error) throw Error("QA login failed.");
+const { data: project, error: projectError } = await db
+  .from("projects")
+  .select("name")
+  .eq("id", projectId)
+  .single();
+if (projectError || !project) throw Error("QA project is unavailable.");
 const cookie = Array.from(jar, ([k, v]) => k + "=" + v).join("; ");
 const origin = process.argv[2] ?? "http://127.0.0.1:3000";
 const label = process.argv[3] ?? "local";
@@ -35,6 +41,10 @@ for (const suffix of [
       signal: AbortSignal.timeout(30000),
     });
     const body = await response.text();
+    if (response.status !== 200 || !body.includes(project.name)) {
+      await db.auth.signOut();
+      throw Error(`Expected authenticated project content at ${suffix}; benchmark aborted.`);
+    }
     const elapsed = Math.round(performance.now() - start);
     const result = {
       route: suffix.replace(projectId, "[projectId]"),

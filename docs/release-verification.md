@@ -55,9 +55,13 @@ Supabase's security advisor reported only the existing project-level warning tha
 
 These are measured/code-backed structural improvements; no unsupported load-time percentage is claimed.
 
+For the same persisted QA project, the previous production task page returned 416,542 bytes of HTML and the local v2 production build returned 101,075 bytes (76% smaller). This measures response size, not browser load time. The benchmark now requires the actual authenticated project name in every response, so redirects or missing configuration cannot appear as a speed improvement. Production timings will be recorded after configuration is repaired.
+
 ## Responsive/accessibility evidence
 
 Property creation and the site designer were checked at 320, 375, 768, 1024 and 1440 pixels. A 320-pixel body overflow was found and corrected; all five designer widths then showed no horizontal page overflow. Form labels, focus styles, native dialog command focus, mobile drawer controls, keyboard concept point placement and reduced-motion CSS are implemented.
+
+Dashboard, task list, documents, costs, Copilot and feasibility were also checked at all five widths without horizontal page overflow. Mobile navigation opened and closed. Profile save feedback and saved cost/milestone records were verified in the browser. PDF documents use a private open/download link; image previews render inside Bouldrr.
 
 ## Intentionally incomplete
 
@@ -68,3 +72,5 @@ External geographic/regulatory feeds, automatic legal parcel/setback/buildable-e
 Production target: https://bouldrr-theta.vercel.app
 Working branch: codex/bouldrr-v2
 Final local gates passed on October 22, 2026: npm install, lint, typecheck and production build. Production dependency audit: zero vulnerabilities. Git whitespace check passed. Deployment and live Maps results remain pending verification. The user is configuring the Maps key directly in Vercel.
+
+Commit 67c8dc74b2cbedea005d8a33dcf34398525f2239 was pushed to both main and codex/bouldrr-v2. Vercel production deployment dpl_61bcseAgGfKk3iXH3ufDz96NugtR reached READY, but live signup exposed missing Supabase environment variables. The old deployment had obtained public configuration from its tracked .env.production file. The environment-variable connector returned 403 for both inspection and creation; the local CLI is not signed in. The previous working deployment was restored while the user configures the two Supabase public values and Maps key directly in Vercel. A production prebuild guard now prevents publishing without Supabase configuration. The goal remains active; production authentication and live Google Maps must still be verified after the rebuild.
