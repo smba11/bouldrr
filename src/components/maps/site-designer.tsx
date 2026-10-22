@@ -79,6 +79,10 @@ export function SiteDesigner({
   const [hidden, setHidden] = useState<FeatureType[]>([]);
   const [keyboardPoint, setKeyboardPoint] = useState<Point>([50, 31.25]);
   const svg = useRef<SVGSVGElement>(null);
+  const latestFeatures = useRef(features);
+  useEffect(() => {
+    latestFeatures.current = features;
+  }, [features]);
   const drag = useRef<{
     id: string;
     start: Point;
@@ -156,6 +160,18 @@ export function SiteDesigner({
     setFeatures((current) =>
       current.map((f) => (f.id === id ? { ...f, geometry } : f)),
     );
+    setDirty(true);
+    setMessage("");
+  }, []);
+  const commitMapChange = useCallback((id: string, geometry: Geometry) => {
+    const current = latestFeatures.current;
+    const feature = current.find((f) => f.id === id);
+    if (!feature || JSON.stringify(feature.geometry) === JSON.stringify(geometry))
+      return;
+    const next = current.map((f) => (f.id === id ? { ...f, geometry } : f));
+    latestFeatures.current = next;
+    setHistory((h) => [...h.slice(-19), current]);
+    setFeatures(next);
     setDirty(true);
     setMessage("");
   }, []);
@@ -426,7 +442,7 @@ export function SiteDesigner({
                 drawing={tool !== "select"}
                 onMapClick={(p) => place(toCanvas(p, anchor, "wgs84"))}
                 onSelect={selectFeature}
-                onFeatureChange={saving ? undefined : mapChange}
+                onFeatureChange={saving ? undefined : commitMapChange}
               />
             ) : (
               <div className="overflow-hidden rounded-xl border">

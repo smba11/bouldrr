@@ -35,6 +35,8 @@ export function PropertyMap({
   const callbacks = useRef({ onMapClick, onFeatureChange, onSelect });
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [attempt, setAttempt] = useState(0);
+  // Recreated maps need overlays reattached even when state stays ready.
+  const [mapGeneration, setMapGeneration] = useState(0);
   const [mode, setMode] = useState("satellite");
   const [full, setFull] = useState(false);
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -85,6 +87,7 @@ export function PropertyMap({
           },
         );
         map.current.panTo(center);
+        setMapGeneration((generation) => generation + 1);
         setState("ready");
       } catch {
         failed();
@@ -101,12 +104,12 @@ export function PropertyMap({
   }, [key, latitude, longitude, address, attempt]);
   useEffect(() => {
     map.current?.setMapTypeId(mode);
-  }, [mode, state]);
+  }, [mode, state, mapGeneration]);
   useEffect(() => {
     map.current?.setOptions({
       draggableCursor: drawing ? "crosshair" : undefined,
     });
-  }, [drawing, state]);
+  }, [drawing, state, mapGeneration]);
   useEffect(() => {
     if (!map.current || state !== "ready") return;
     const g = google;
@@ -133,10 +136,10 @@ export function PropertyMap({
           map: map.current,
           position: { lat, lng },
           title: feature.name,
-          content: node,
           gmpDraggable: editable,
-          gmpClickable: !!onSelect,
+          gmpClickable: !!onSelect && !drawing,
         });
+        m.append(node);
         markers.push(m);
         m.addEventListener("gmp-click", () =>
           callbacks.current.onSelect?.(feature.id),
@@ -144,11 +147,17 @@ export function PropertyMap({
         listeners.push(
           m.addListener("dragend", () => {
             const p = m.position;
-            if (p)
+            if (p) {
+              const coordinates: [number, number] = [
+                typeof p.lng === "function" ? p.lng() : p.lng,
+                typeof p.lat === "function" ? p.lat() : p.lat,
+              ];
+              if (!coordinates.every(Number.isFinite)) return;
               callbacks.current.onFeatureChange?.(feature.id, {
                 type: "Point",
-                coordinates: [Number(p.lng), Number(p.lat)],
+                coordinates,
               });
+            }
           }),
         );
         continue;
@@ -214,7 +223,15 @@ export function PropertyMap({
         m.map = null;
       });
     };
-  }, [features, selectedId, drawing, state, onFeatureChange, onSelect]);
+  }, [
+    features,
+    selectedId,
+    drawing,
+    state,
+    onFeatureChange,
+    onSelect,
+    mapGeneration,
+  ]);
   useEffect(() => {
     if (!full) return;
     const previous = document.body.style.overflow;

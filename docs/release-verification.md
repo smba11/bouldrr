@@ -31,6 +31,8 @@ The connected Supabase project auto-confirms email signup. The confirmation-requ
 
 Implementation includes current Places (New), geocoding, advanced markers, map types, editing overlays, graceful failures and lazy loading. The local environment has no Google Maps key. Manual-address and no-map workflows are verified; live Google API success is unverified until a restricted, billing-enabled key is configured.
 
+The final integration review corrected marker-drag coordinate normalization for both LatLng objects and coordinate literals, following [Google's AdvancedMarkerElement position contract](https://developers.google.com/maps/documentation/javascript/reference/advanced-markers#AdvancedMarkerElement.position). Recreated maps reattach their controls and overlays; map edits participate in Undo history. These changes pass lint, typecheck and production build; actual Google interaction remains an explicit live-test requirement.
+
 ## Applied database migrations
 
 - 20261020191737_bouldrr_v2_site_workspace.sql
