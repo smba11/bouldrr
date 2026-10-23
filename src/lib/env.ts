@@ -4,11 +4,18 @@ export type PublicEnv = {
 };
 
 export function getPublicEnv(): PublicEnv | null {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const supabasePublishableKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
 
   if (!supabaseUrl || !supabasePublishableKey) {
+    return null;
+  }
+
+  try {
+    const url = new URL(supabaseUrl);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return null;
+  } catch {
     return null;
   }
 
