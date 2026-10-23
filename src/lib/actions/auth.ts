@@ -63,7 +63,9 @@ export async function signUpAction(
   if (error) {
     return {
       message:
-        error.status === 429
+        error.message.toLowerCase().includes("invalid api key")
+          ? "Account access isn’t connected correctly. Please try again later."
+          : error.status === 429
           ? "Too many attempts. Please wait a moment and try again."
           : "We couldn’t create your account. Check your details and try again.",
     };
@@ -105,7 +107,9 @@ export async function signInAction(
   if (error) {
     return {
       message:
-        error.status === 429
+        error.message.toLowerCase().includes("invalid api key")
+          ? "Account access isn’t connected correctly. Please try again later."
+          : error.status === 429
           ? "Too many attempts. Please wait a moment and try again."
           : "We couldn’t sign you in. Check your email and password, and make sure your email is confirmed.",
     };

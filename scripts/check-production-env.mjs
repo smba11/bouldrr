@@ -22,4 +22,42 @@ if (process.env.VERCEL_ENV === "production") {
       process.exitCode = 1;
     }
   }
+
+  if (!process.exitCode) {
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.trim();
+    let isPublicKey = key.startsWith("sb_publishable_");
+    if (!isPublicKey) {
+      try {
+        const claims = JSON.parse(Buffer.from(key.split(".")[1], "base64url"));
+        isPublicKey = claims.role === "anon";
+      } catch {
+        // A private key or assignment string must never be bundled as public config.
+      }
+    }
+    if (!isPublicKey) {
+      console.error(
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must contain only a publishable key or legacy anon key. Never use a secret or service-role key.",
+      );
+      process.exitCode = 1;
+    } else {
+      try {
+        const base = process.env.NEXT_PUBLIC_SUPABASE_URL.trim().replace(/\/$/, "");
+        const response = await fetch(`${base}/auth/v1/health`, {
+          headers: { apikey: key },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!response.ok) {
+          console.error(
+            `Production Supabase configuration check failed (HTTP ${response.status}). Verify the project URL and matching publishable key, then rebuild.`,
+          );
+          process.exitCode = 1;
+        }
+      } catch {
+        console.error(
+          "Production Supabase configuration could not be verified. Check the URL and connection, then rebuild.",
+        );
+        process.exitCode = 1;
+      }
+    }
+  }
 }
